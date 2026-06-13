@@ -74,6 +74,59 @@ public sealed record InboundResult(
 /// <summary>what_does_it_do result: the entity and its outbound edges.</summary>
 public sealed record OutboundResult(EntityRef Entity, List<RefEdge> References);
 
+/// <summary>analyze_effects result: direct effects plus inferred downstream consequences.</summary>
+public sealed record EffectAnalysisResult(
+    EntityRef Entity,
+    List<EffectBlockAnalysis> Blocks,
+    List<string> Caveats);
+
+/// <summary>One executable effect block, such as a decision effect or event option.</summary>
+public sealed record EffectBlockAnalysis(
+    string BlockKind,
+    int? OptionIndex,
+    string? OptionNameKey,
+    string? OptionNameText,
+    List<TooltipInsight> Tooltips,
+    List<EffectStatement> DirectEffects,
+    List<StateChange> StateChanges,
+    List<FiredEventAnalysis> FiredEvents,
+    List<DownstreamConsequence> DownstreamConsequences);
+
+/// <summary>A custom_tooltip found near executable effects.</summary>
+public sealed record TooltipInsight(
+    string LocKey,
+    string? Text,
+    string Classification,
+    string Reason);
+
+/// <summary>A compact effect statement summary.</summary>
+public sealed record EffectStatement(string Key, string? Value, string Context);
+
+/// <summary>A flag, variable, or modifier state change produced by an effect block.</summary>
+public sealed record StateChange(
+    string Kind,
+    string Key,
+    string Operation,
+    string? Value,
+    string Context);
+
+/// <summary>A fired event expanded far enough to expose hidden effects and state writes.</summary>
+public sealed record FiredEventAnalysis(
+    EntityRef Event,
+    List<EffectBlockAnalysis> Blocks,
+    List<TooltipInsight> Tooltips,
+    List<EffectStatement> DirectEffects,
+    List<StateChange> StateChanges,
+    List<DownstreamConsequence> DownstreamConsequences);
+
+/// <summary>A later entity whose conditions consume state changed by this effect.</summary>
+public sealed record DownstreamConsequence(
+    string StateKind,
+    string StateKey,
+    EntityRef Consumer,
+    string ConditionSummary,
+    List<EffectStatement> EffectSummary);
+
 /// <summary>An entity whose conditions check a given flag/variable/trigger.</summary>
 public sealed record ConditionUser(
     string EntityType,
