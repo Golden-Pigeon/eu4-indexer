@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Domain.fs" />
+    <Compile Include="GameAdapter.fs" />
+    <Compile Include="ModDescriptor.fs" />
+    <Compile Include="Discovery.fs" />
+    <Compile Include="ConfigCatalog.fs" />
+    <Compile Include="FileResolution.fs" />
+    <Compile Include="Parsing.fs" />
+    <Compile Include="ScriptTree.fs" />
+    <Compile Include="Extractors/Support.fs" />
+    <Compile Include="Extractors/Events.fs" />
+    <Compile Include="Extractors/Missions.fs" />
+    <Compile Include="Extractors/Decisions.fs" />
+    <Compile Include="Extractors/Modifiers.fs" />
+    <Compile Include="Extractors/Generic.fs" />
+    <Compile Include="OverrideResolution.fs" />
+    <Compile Include="Localisation.fs" />
+    <Compile Include="Database/Schema.fs" />
+    <Compile Include="Database/Writer.fs" />
+    <Compile Include="Pipeline.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../cwtools/CWTools/CWTools.fsproj" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>
