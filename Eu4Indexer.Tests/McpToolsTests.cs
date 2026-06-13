@@ -140,6 +140,9 @@ public class McpToolsTests
             var query = QueryTools.ReadQuery(db, "SELECT count(*) AS n FROM entities", 5);
             Assert.Single(query.Rows);
             Assert.Throws<ArgumentException>(() => QueryTools.ReadQuery(db, "DELETE FROM entities", 5));
+            // a write hidden behind a CTE passes the prefix check but the EXPLAIN guard rejects it
+            Assert.Throws<ArgumentException>(() =>
+                QueryTools.ReadQuery(db, "WITH x AS (SELECT 1) DELETE FROM entities", 5));
         }
         finally
         {

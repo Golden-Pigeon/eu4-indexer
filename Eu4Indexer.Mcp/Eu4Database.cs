@@ -116,6 +116,8 @@ public sealed class Eu4Database
             throw new ArgumentException("Only read-only SELECT (or WITH ... SELECT) queries are allowed.");
 
         using var conn = Open();
+        GuardReadOnly(conn, trimmed);
+
         using var cmd = conn.CreateCommand();
         cmd.CommandText = trimmed;
         cmd.CommandTimeout = CommandTimeoutSeconds;
@@ -148,6 +150,40 @@ public sealed class Eu4Database
         }
 
         return new QueryResult(columns, rows, rows.Count, truncated);
+    }
+
+    /// SQLite VDBE opcodes that mutate the database or schema. A pure SELECT
+    /// never emits these (temp sorters use OpenEphemeral, not OpenWrite).
+    private static readonly HashSet<string> WriteOpcodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "OpenWrite", "Insert", "InsertInt", "Delete", "IdxInsert", "IdxDelete",
+        "Destroy", "Clear", "CreateBtree", "CreateTable", "CreateIndex",
+        "DropTable", "DropIndex", "DropTrigger", "Vacuum", "ParseSchema",
+        "RenameTable", "SqlExec",
+    };
+
+    /// <summary>
+    /// Defence in depth: EXPLAIN the statement (which compiles but does not run
+    /// it) and reject it if its opcode stream contains any write. The read-only
+    /// connection already blocks writes; this gives a clear error up front and
+    /// catches writes hidden behind triggers or CTEs.
+    /// </summary>
+    private void GuardReadOnly(SqliteConnection conn, string sql)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "EXPLAIN " + sql;
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+
+        using var reader = cmd.ExecuteReader();
+        var opcodeColumn = reader.GetOrdinal("opcode");
+
+        while (reader.Read())
+        {
+            var opcode = reader.GetString(opcodeColumn);
+
+            if (WriteOpcodes.Contains(opcode))
+                throw new ArgumentException($"Query is not read-only (opcode {opcode}).");
+        }
     }
 
     /// <summary>
