@@ -95,6 +95,9 @@ relationships are recorded explicitly — see below.
 - FTS5: `loc_fts`, `entity_fts` for full-text search over localisation and raw
   entity script.
 
+Credit: the non-Latin EU4 special-escape decoding logic is based on
+[bruceCzK's original conversion script](https://gist.github.com/bruceCzK/96ad6e054111f929ed67291552d36334).
+
 `PRAGMA user_version` and the `meta` table carry schema version and run provenance.
 
 ## Example queries
