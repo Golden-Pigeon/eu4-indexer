@@ -45,8 +45,9 @@ set up, the conventions the codebase follows, and how to land a change.
 
 | Project | Language | Purpose |
 |---|---|---|
-| `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, SQLite writer |
+| `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, reference graph, SQLite writer |
 | `Eu4Indexer.Cli` | F# (Argu) | `index` and `detect` commands |
+| `Eu4Indexer.Mcp` | C# | Read-only MCP server exposing query tools to agents |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 
 `Eu4Indexer.Core` modules compile in dependency order (see the `.fsproj`); when
@@ -54,6 +55,13 @@ you add a file, place it in the `<Compile>` list after everything it depends on.
 The design is game-agnostic at its core (`GameAdapter`); EU4 is the only
 implementation today. Keep all CWTools calls isolated to `Parsing.fs`,
 `ConfigCatalog.fs`, and `Localisation.fs`.
+
+`Eu4Indexer.Mcp` is read-only: open the database with `Mode=ReadOnly`, keep all
+SQL parameterized and result sets bounded, and put the right joins (effective
+rows, the `refs` graph, localisation) inside the tools. Add a tool as a
+`[McpServerTool]` method on a `[McpServerToolType]` class taking `Eu4Database`
+as its first parameter; it is picked up automatically. Bump `Schema.UserVersion`
+for any schema change and let the server's startup guard reject stale indexes.
 
 ## Conventions
 
