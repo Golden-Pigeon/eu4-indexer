@@ -28,7 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../cwtools/CWTools/CWTools.fsproj" />
+    <ProjectReference Include="../external/cwtools/CWTools/CWTools.fsproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
   </ItemGroup>
 
