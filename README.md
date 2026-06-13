@@ -114,3 +114,8 @@ dotnet test
 Unit tests run anywhere. Integration tests index the real game + example mod and
 no-op automatically when those paths are absent; point them with the
 `EU4_GAME_DIR`, `EU4_CONFIG_DIR`, and `EU4_EXAMPLE_MOD_DIR` environment variables.
+
+## License
+
+[MIT](LICENSE). This project links [CWTools](https://github.com/cwtools/cwtools),
+which is also MIT-licensed.
