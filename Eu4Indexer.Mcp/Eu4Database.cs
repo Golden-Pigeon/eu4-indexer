@@ -96,6 +96,61 @@ public sealed class Eu4Database
     public static string FtsPhrase(string text) => "\"" + text.Replace("\"", "\"\"") + "\"";
 
     /// <summary>
+    /// Execute a single read-only SELECT (or WITH ... SELECT) and return its rows
+    /// as column-keyed maps, capped at <paramref name="maxRows"/>. Rejects
+    /// anything that is not a single SELECT; the connection is read-only as well.
+    /// </summary>
+    public QueryResult ReadQuery(string sql, int maxRows)
+    {
+        var trimmed = sql.Trim().TrimEnd(';').Trim();
+
+        if (trimmed.Length == 0)
+            throw new ArgumentException("Empty query.");
+
+        if (trimmed.Contains(';'))
+            throw new ArgumentException("Only a single statement is allowed (no ';').");
+
+        var lower = trimmed.ToLowerInvariant();
+
+        if (!lower.StartsWith("select") && !lower.StartsWith("with"))
+            throw new ArgumentException("Only read-only SELECT (or WITH ... SELECT) queries are allowed.");
+
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = trimmed;
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+
+        using var reader = cmd.ExecuteReader();
+
+        var columns = new List<string>();
+        for (var i = 0; i < reader.FieldCount; i++)
+            columns.Add(reader.GetName(i));
+
+        var rows = new List<Dictionary<string, object?>>();
+        var truncated = false;
+
+        while (reader.Read())
+        {
+            if (rows.Count >= maxRows)
+            {
+                truncated = true;
+                break;
+            }
+
+            var row = new Dictionary<string, object?>(columns.Count);
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                var value = reader.GetValue(i);
+                row[columns[i]] = value is DBNull ? null : value;
+            }
+
+            rows.Add(row);
+        }
+
+        return new QueryResult(columns, rows, rows.Count, truncated);
+    }
+
+    /// <summary>
     /// Resolve an entity by key (and optional type) to its id and identity,
     /// preferring the effective definition and, when the type is left open,
     /// events. Returns null when no entity matches.
