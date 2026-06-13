@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "eu4": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "-c",
+        "Release",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/Eu4Indexer.Mcp",
+        "--",
+        "--db",
+        "${EU4_DB}"
+      ]
+    }
+  }
+}

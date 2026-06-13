@@ -139,9 +139,18 @@ checked but never set, events fired but undefined — candidate bugs);
 `describe_schema` (the DDL and a data dictionary — call it first); and
 `read_query` (a guarded read-only SELECT escape hatch).
 
-[`Eu4Indexer.Mcp/SKILL.md`](Eu4Indexer.Mcp/SKILL.md) teaches an agent the EU4
-causal model and three workflows (explain an entity, explain a phenomenon / find
-a bug, and plan how to reach a goal) for combining these tools.
+[`skills/eu4-indexer/SKILL.md`](skills/eu4-indexer/SKILL.md) teaches an agent the
+EU4 causal model and three workflows (explain an entity, explain a phenomenon /
+find a bug, and plan how to reach a goal) for combining these tools.
+
+### Install as a Claude Code plugin
+
+This repo is also a Claude Code plugin (`.claude-plugin/plugin.json` + `.mcp.json`
++ the skill). Build an index, set `EU4_DB`, and install the plugin from this
+directory; the bundled `.mcp.json` launches the server via
+`${CLAUDE_PLUGIN_ROOT}/Eu4Indexer.Mcp` against `${EU4_DB}`.
+
+### Manual registration
 
 Register it with an MCP client, e.g. Claude Code / Desktop:
 
