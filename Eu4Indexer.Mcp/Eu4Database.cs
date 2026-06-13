@@ -95,6 +95,16 @@ public sealed class Eu4Database
     /// </summary>
     public static string FtsPhrase(string text) => "\"" + text.Replace("\"", "\"\"") + "\"";
 
+    private bool? _ftsAvailable;
+
+    /// <summary>
+    /// Whether the full-text indexes exist. They are absent when the database
+    /// was built with --no-fts, in which case the search tools cannot run.
+    /// </summary>
+    public bool FtsAvailable =>
+        _ftsAvailable ??= QueryScalar<long>(
+            "SELECT count(*) FROM sqlite_master WHERE name IN ('loc_fts', 'entity_fts')") >= 2;
+
     /// <summary>
     /// Execute a single read-only SELECT (or WITH ... SELECT) and return its rows
     /// as column-keyed maps, capped at <paramref name="maxRows"/>. Rejects
@@ -107,7 +117,7 @@ public sealed class Eu4Database
         if (trimmed.Length == 0)
             throw new ArgumentException("Empty query.");
 
-        if (trimmed.Contains(';'))
+        if (HasStatementSeparator(trimmed))
             throw new ArgumentException("Only a single statement is allowed (no ';').");
 
         var lower = trimmed.ToLowerInvariant();
@@ -184,6 +194,85 @@ public sealed class Eu4Database
             if (WriteOpcodes.Contains(opcode))
                 throw new ArgumentException($"Query is not read-only (opcode {opcode}).");
         }
+    }
+
+    /// <summary>
+    /// True if a ';' appears outside string literals, quoted identifiers and
+    /// comments — i.e. a real statement separator (the trailing ';' is trimmed
+    /// before this runs). This avoids rejecting a ';' inside e.g. SELECT ';'.
+    /// </summary>
+    private static bool HasStatementSeparator(string sql)
+    {
+        var i = 0;
+
+        while (i < sql.Length)
+        {
+            var c = sql[i];
+            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
+
+            switch (c)
+            {
+                case '\'' or '"' or '`':
+                    i = SkipQuoted(sql, i, c);
+                    continue;
+                case '[':
+                    i = SkipUntil(sql, i + 1, ']');
+                    continue;
+                case '-' when next == '-':
+                    i = SkipUntil(sql, i + 2, '\n');
+                    continue;
+                case '/' when next == '*':
+                    i = SkipBlockComment(sql, i + 2);
+                    continue;
+                case ';':
+                    return true;
+                default:
+                    i++;
+                    continue;
+            }
+        }
+
+        return false;
+    }
+
+    /// Skip a quoted run; a doubled quote char is an escape, not a terminator.
+    private static int SkipQuoted(string sql, int start, char quote)
+    {
+        var i = start + 1;
+
+        while (i < sql.Length)
+        {
+            if (sql[i] == quote)
+            {
+                if (i + 1 < sql.Length && sql[i + 1] == quote)
+                {
+                    i += 2;
+                    continue;
+                }
+
+                return i + 1;
+            }
+
+            i++;
+        }
+
+        return i;
+    }
+
+    private static int SkipUntil(string sql, int start, char terminator)
+    {
+        var i = start;
+        while (i < sql.Length && sql[i] != terminator)
+            i++;
+        return i < sql.Length ? i + 1 : i;
+    }
+
+    private static int SkipBlockComment(string sql, int start)
+    {
+        var i = start;
+        while (i + 1 < sql.Length && !(sql[i] == '*' && sql[i + 1] == '/'))
+            i++;
+        return i + 1 < sql.Length ? i + 2 : sql.Length;
     }
 
     /// <summary>

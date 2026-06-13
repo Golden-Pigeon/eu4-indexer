@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
 namespace Eu4Indexer.Mcp;
@@ -7,6 +8,16 @@ namespace Eu4Indexer.Mcp;
 [McpServerToolType]
 public static class SearchTools
 {
+    /// Both search tools need the FTS indexes; surface a clear, actionable error
+    /// (rather than a raw "no such table") when the index was built with --no-fts.
+    private static void RequireFts(Eu4Database db)
+    {
+        if (!db.FtsAvailable)
+            throw new McpException(
+                "This index was built without full-text search (--no-fts), so text search is " +
+                "unavailable. Re-index without --no-fts, or use the entity/graph tools instead.");
+    }
+
     [McpServerTool(Name = "search_localisation")]
     [Description(
         "Full-text search over localisation display text. Formatting markup (colour " +
@@ -18,6 +29,7 @@ public static class SearchTools
         [Description("Optional language filter, e.g. 'english'. Default: all languages.")] string? language = null,
         [Description("Maximum results (default 30, max 200).")] int limit = 30)
     {
+        RequireFts(db);
         limit = Math.Clamp(limit, 1, 200);
 
         var sql =
@@ -56,6 +68,7 @@ public static class SearchTools
         [Description("Text to search for.")] string text,
         [Description("Maximum results per source (default 15, max 100).")] int limit = 15)
     {
+        RequireFts(db);
         limit = Math.Clamp(limit, 1, 100);
         var query = Eu4Database.FtsPhrase(text);
         var hits = new List<SearchHit>();
