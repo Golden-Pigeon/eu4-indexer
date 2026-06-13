@@ -20,34 +20,13 @@ public static class EntityTools
         [Description("Entity type, e.g. 'event', 'decision', 'mission', 'scripted_trigger'.")] string entityType,
         [Description("Entity key/id, e.g. 'my_events.1'.")] string entityKey)
     {
-        var parms = new Dictionary<string, object?> { ["$t"] = entityType, ["$k"] = entityKey };
+        var resolved = db.ResolveEntity(entityType, entityKey);
 
-        var entity = db.Query(
-            """
-            SELECT e.entity_id, e.entity_type, e.entity_key, e.is_effective, s.name, f.relative_path
-            FROM entities e
-            JOIN sources s USING (source_id)
-            JOIN files f USING (file_id)
-            WHERE e.entity_type = $t AND e.entity_key = $k
-            ORDER BY e.is_effective DESC
-            LIMIT 1
-            """,
-            r => new
-            {
-                Id = r.GetInt64(0),
-                Type = r.GetString(1),
-                Key = r.GetString(2),
-                Effective = r.GetInt64(3) != 0,
-                Source = r.GetString(4),
-                Path = r.GetString(5),
-            },
-            parms,
-            1).FirstOrDefault();
-
-        if (entity is null)
+        if (resolved is null)
             return null;
 
-        var idParam = new Dictionary<string, object?> { ["$id"] = entity.Id };
+        var (entityId, entityRef) = resolved.Value;
+        var idParam = new Dictionary<string, object?> { ["$id"] = entityId };
 
         var localisation = db.Query(
             """
@@ -61,7 +40,7 @@ public static class EntityTools
             r => new LocText(r.GetString(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2)),
             idParam);
 
-        var (roots, truncated) = db.LoadScriptTree(entity.Id);
+        var (roots, truncated) = db.LoadScriptTree(entityId);
 
         var options = db.Query(
             """
@@ -91,7 +70,7 @@ public static class EntityTools
             idParam,
             500);
 
-        var inboundType = InboundTargetType(entity.Type);
+        var inboundType = Eu4Database.InboundTargetType(entityRef.EntityType);
 
         var inbound = inboundType is null
             ? new List<InboundEdge>()
@@ -104,11 +83,11 @@ public static class EntityTools
                 ORDER BY r.ref_kind, fe.entity_key
                 """,
                 r => new InboundEdge(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)),
-                new Dictionary<string, object?> { ["$k"] = entity.Key, ["$tt"] = inboundType },
+                new Dictionary<string, object?> { ["$k"] = entityRef.EntityKey, ["$tt"] = inboundType },
                 500);
 
         return new EntityExplanation(
-            new EntityRef(entity.Type, entity.Key, entity.Source, entity.Effective, entity.Path),
+            entityRef,
             localisation,
             roots,
             truncated,
@@ -151,14 +130,4 @@ public static class EntityTools
 
         return new SymbolResolution(name, matches, scripted.Type, db.LoadScriptTree(scripted.Id).Roots);
     }
-
-    /// The refs.target_type to look for when finding inbound references to an entity.
-    private static string? InboundTargetType(string entityType) => entityType switch
-    {
-        "event" => "event",
-        "scripted_trigger" => "scripted_trigger",
-        "scripted_effect" => "scripted_effect",
-        "event_modifier" or "static_modifier" or "triggered_modifier" => "modifier",
-        _ => null,
-    };
 }

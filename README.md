@@ -127,9 +127,11 @@ to ad-hoc SQL. It takes the database path from `--db` or the `EU4_DB`
 environment variable and refuses a schema-version mismatch on startup.
 
 Tools so far: `explain_entity` (an entity's conditions, options, and what it
-references / is referenced by), `search_localisation` (markup-stripped,
-CJK-friendly text search), `search_everything` (cross-type search when the
-content type is unknown), and `resolve_symbol` (explain a trigger/effect, or
+references / is referenced by); `what_triggers` and `what_does_it_do` (reverse
+and forward traversal of the causal graph); `find_by_condition` (what is gated
+by a flag/variable/trigger); `search_localisation` (markup-stripped,
+CJK-friendly text search); `search_everything` (cross-type search when the
+content type is unknown); and `resolve_symbol` (explain a trigger/effect, or
 expand a scripted definition).
 
 Register it with an MCP client, e.g. Claude Code / Desktop:
