@@ -8,6 +8,7 @@ module Localisation =
     open System
     open System.IO
     open System.Text
+    open System.Text.RegularExpressions
     open CWTools.Localisation
     open FParsec
 
@@ -104,6 +105,28 @@ module Localisation =
 
             sb.ToString()
 
+    // -----------------------------------------------------------------------
+    // Inline formatting markup stripping.
+    //
+    // Localisation values carry presentation markup that breaks plain-text
+    // search: colour codes "§X ... §!" (section sign + one code char,
+    // reset is "§!") and icon codes "£name£" (pound sign). When every
+    // character of a word is wrapped in its own colour span, the word is no
+    // longer a contiguous run of text and full-text search misses it.
+    // stripMarkup removes these so the searchable column holds the bare text.
+    // -----------------------------------------------------------------------
+
+    let private markupPattern =
+        Regex(@"§.?|£[^£]*£", RegexOptions.Compiled)
+
+    /// Remove EU4 colour (§) and icon (£) markup. No-op (returns the
+    /// same string) when the value contains neither marker.
+    let stripMarkup (s: string) : string =
+        if isNull s || (s.IndexOf '§' < 0 && s.IndexOf '£' < 0) then
+            s
+        else
+            markupPattern.Replace(s, "")
+
     let private stripQuotes (s: string) =
         let s = s.Trim()
 
@@ -167,10 +190,13 @@ module Localisation =
 
             locFile.entries
             |> Seq.map (fun entry ->
+                let value = resolveValue rawLines entry |> decodeSpecialEscape
+
                 { LocId = nextLocId ()
                   LocKey = entry.key
                   Language = language
-                  Value = resolveValue rawLines entry |> decodeSpecialEscape
+                  Value = value
+                  ValuePlain = stripMarkup value
                   VersionNum =
                     entry.value
                     |> Option.map (fun c -> int c - int '0')

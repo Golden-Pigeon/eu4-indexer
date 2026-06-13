@@ -67,6 +67,26 @@ public class LocalisationTests
         Assert.Equal(input, Localisation.decodeSpecialEscape(input));
     }
 
+    // -- markup stripping (§ colour codes, £ icon codes) -----------------------
+
+    [Theory]
+    [InlineData("§Yyellow§! and §Rred§!", "yellow and red")]
+    // the bug case: every character wrapped in its own colour span
+    [InlineData("§Aa§!§Bb§!§Cc§!", "abc")]
+    [InlineData("trailing marker §", "trailing marker ")]
+    [InlineData("Stability +1", "Stability +1")]
+    [InlineData("", "")]
+    public void StripMarkup_RemovesColorCodes(string input, string expected)
+    {
+        Assert.Equal(expected, Localisation.stripMarkup(input));
+    }
+
+    [Fact]
+    public void StripMarkup_RemovesIconCodes()
+    {
+        Assert.Equal("cost  now", Localisation.stripMarkup("cost £gold£ now"));
+    }
+
     // -- reference encoder (toUtf8 = true, newVersion = true / EU4 >= 1.26) ----
 
     private static readonly int[] InternalChars =
