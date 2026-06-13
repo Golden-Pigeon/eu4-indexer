@@ -143,6 +143,14 @@ public class McpToolsTests
             // a write hidden behind a CTE passes the prefix check but the EXPLAIN guard rejects it
             Assert.Throws<ArgumentException>(() =>
                 QueryTools.ReadQuery(db, "WITH x AS (SELECT 1) DELETE FROM entities", 5));
+
+            // a ';' inside a string literal is fine; a real statement separator is rejected
+            var semi = QueryTools.ReadQuery(db, "SELECT ';' AS s", 5);
+            Assert.Equal(";", semi.Rows[0]["s"]);
+            Assert.Throws<ArgumentException>(() => QueryTools.ReadQuery(db, "SELECT 1; SELECT 2", 5));
+
+            // this index has FTS, so the search tools are usable
+            Assert.True(db.FtsAvailable);
         }
         finally
         {
