@@ -15,3 +15,7 @@ obj/
 .codegraph/
 
 outputs/
+
+# Local environment (keep .env.example tracked)
+.env*
+!.env.example

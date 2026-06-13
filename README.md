@@ -118,8 +118,17 @@ dotnet test
 ```
 
 Unit tests run anywhere. Integration tests index the real game + example mod and
-no-op automatically when those paths are absent; point them with the
-`EU4_GAME_DIR`, `EU4_CONFIG_DIR`, and `EU4_EXAMPLE_MOD_DIR` environment variables.
+no-op automatically when those paths are absent. To enable them, copy
+`.env.example` to `.env` and fill in the paths (or set `EU4_GAME_DIR`,
+`EU4_CONFIG_DIR`, and `EU4_EXAMPLE_MOD_DIR` in the environment, which takes
+precedence). `.env` is git-ignored.
+
+```bash
+cp .env.example .env   # then edit the paths
+dotnet test
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
 
 ## License
 
