@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Eu4Indexer.Core\Eu4Indexer.Core.fsproj" />
+    <ProjectReference Include="..\Eu4Indexer.Mcp\Eu4Indexer.Mcp.csproj" />
   </ItemGroup>
 
 </Project>

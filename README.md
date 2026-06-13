@@ -118,6 +118,29 @@ JOIN entities e USING (entity_id)
 WHERE n.context = 'trigger' AND (n.value = 'FRA' OR (n.key = 'tag' AND n.value = 'FRA'));
 ```
 
+## Querying with an agent (MCP)
+
+`Eu4Indexer.Mcp` is a read-only [MCP](https://modelcontextprotocol.io) server
+that exposes the index to an AI agent as typed tools, so the correct joins
+(effective-only, the causal graph, localisation) are built in rather than left
+to ad-hoc SQL. It takes the database path from `--db` or the `EU4_DB`
+environment variable and refuses a schema-version mismatch on startup.
+
+Tools so far: `explain_entity` (an entity's conditions, options, and what it
+references / is referenced by), `search_localisation` (markup-stripped,
+CJK-friendly text search), `search_everything` (cross-type search when the
+content type is unknown), and `resolve_symbol` (explain a trigger/effect, or
+expand a scripted definition).
+
+Register it with an MCP client, e.g. Claude Code / Desktop:
+
+```json
+{ "mcpServers": { "eu4": {
+  "command": "dotnet",
+  "args": ["run", "--project", "/abs/path/Eu4Indexer.Mcp", "--", "--db", "/abs/path/eu4.db"]
+} } }
+```
+
 ## Testing
 
 ```bash
