@@ -64,9 +64,11 @@ public static class GraphTools
 
     [McpServerTool(Name = "what_does_it_do")]
     [Description(
-        "Forward lookup: what this entity references — events it fires, flags/variables " +
+        "Forward lookup: what this entity directly references — events it fires, flags/variables " +
         "it sets or checks, modifiers it applies or checks, and scripted triggers/effects " +
-        "it calls. Returns null if the entity is not found.")]
+        "it calls. For user-facing effect explanations, prefer analyze_effects because it " +
+        "also connects custom_tooltip text, hidden effects, fired events, and downstream " +
+        "variable/flag consequences. Returns null if the entity is not found.")]
     public static OutboundResult? WhatDoesItDo(
         Eu4Database db,
         [Description("Entity key/id.")] string entityKey,
