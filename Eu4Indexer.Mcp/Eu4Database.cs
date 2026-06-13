@@ -96,6 +96,52 @@ public sealed class Eu4Database
     public static string FtsPhrase(string text) => "\"" + text.Replace("\"", "\"\"") + "\"";
 
     /// <summary>
+    /// Resolve an entity by key (and optional type) to its id and identity,
+    /// preferring the effective definition and, when the type is left open,
+    /// events. Returns null when no entity matches.
+    /// </summary>
+    public (long Id, EntityRef Ref)? ResolveEntity(string? entityType, string entityKey)
+    {
+        var sql =
+            """
+            SELECT e.entity_id, e.entity_type, e.entity_key, e.is_effective, s.name, f.relative_path
+            FROM entities e
+            JOIN sources s USING (source_id)
+            JOIN files f USING (file_id)
+            WHERE e.entity_key = $k
+            """
+            + (entityType is null ? "" : " AND e.entity_type = $t")
+            + " ORDER BY e.is_effective DESC, (e.entity_type = 'event') DESC LIMIT 1";
+
+        var parameters = new Dictionary<string, object?> { ["$k"] = entityKey };
+
+        if (entityType is not null)
+            parameters["$t"] = entityType;
+
+        var rows = Query(
+            sql,
+            r => (r.GetInt64(0),
+                  new EntityRef(r.GetString(1), r.GetString(2), r.GetString(4), r.GetInt64(3) != 0, r.GetString(5))),
+            parameters,
+            1);
+
+        return rows.Count == 0 ? null : rows[0];
+    }
+
+    /// <summary>
+    /// The refs.target_type to look for when finding inbound references to an
+    /// entity of the given type, or null when nothing meaningfully points at it.
+    /// </summary>
+    public static string? InboundTargetType(string entityType) => entityType switch
+    {
+        "event" => "event",
+        "scripted_trigger" => "scripted_trigger",
+        "scripted_effect" => "scripted_effect",
+        "event_modifier" or "static_modifier" or "triggered_modifier" => "modifier",
+        _ => null,
+    };
+
+    /// <summary>
     /// Load an entity's script tree as nested nodes (roots first), capped at
     /// <paramref name="maxNodes"/>. Returns the roots and whether it was truncated.
     /// </summary>

@@ -67,6 +67,39 @@ public class McpToolsTests
             var loc = SearchTools.SearchLocalisation(db, "Stability", "english", 5);
             Assert.NotEmpty(loc);
             Assert.All(loc, h => Assert.Equal("english", h.Language));
+
+            // what_does_it_do: the same event lists its outbound references
+            var forward = GraphTools.WhatDoesItDo(db, eventKey!, "event");
+            Assert.NotNull(forward);
+            Assert.True(forward!.References.Count > 0);
+
+            // what_triggers: an event that is the target of a fires_event edge has inbound
+            var firedEvent = db.Query(
+                """
+                SELECT target_key FROM refs
+                WHERE ref_kind = 'fires_event'
+                  AND target_key IN (SELECT entity_key FROM entities WHERE entity_type = 'event' AND is_effective = 1)
+                LIMIT 1
+                """,
+                r => r.GetString(0), null, 1).FirstOrDefault();
+
+            if (firedEvent is not null)
+            {
+                var inbound = GraphTools.WhatTriggers(db, firedEvent, "event");
+                Assert.NotNull(inbound);
+                Assert.True(inbound!.TriggeredBy.Count > 0);
+            }
+
+            // find_by_condition: a checked flag is used by at least one entity
+            var checkedFlag = db.Query(
+                "SELECT target_key FROM refs WHERE ref_kind = 'checks_flag' AND target_type = 'country_flag' LIMIT 1",
+                r => r.GetString(0), null, 1).FirstOrDefault();
+
+            if (checkedFlag is not null)
+            {
+                var users = GraphTools.FindByCondition(db, checkedFlag, "country_flag", null, 50);
+                Assert.NotEmpty(users);
+            }
         }
         finally
         {

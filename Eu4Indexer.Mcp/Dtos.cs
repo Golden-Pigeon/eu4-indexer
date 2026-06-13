@@ -64,3 +64,20 @@ public sealed record SymbolResolution(
     List<SymbolMatch> Matches,
     string? ScriptedType,
     List<ScriptNodeDto>? Definition);
+
+/// <summary>what_triggers result: the entity, how it fires, and its inbound edges.</summary>
+public sealed record InboundResult(
+    EntityRef Entity,
+    string? FiringModel,
+    List<InboundEdge> TriggeredBy);
+
+/// <summary>what_does_it_do result: the entity and its outbound edges.</summary>
+public sealed record OutboundResult(EntityRef Entity, List<RefEdge> References);
+
+/// <summary>An entity whose conditions check a given flag/variable/trigger.</summary>
+public sealed record ConditionUser(
+    string EntityType,
+    string EntityKey,
+    string RefKind,
+    string FromContext,
+    bool Negated);
