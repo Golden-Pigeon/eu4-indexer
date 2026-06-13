@@ -108,3 +108,40 @@ public sealed record DanglingRef(
     string TargetKey,
     long ReferencedBy,
     string? SampleReferencer);
+
+/// <summary>A content source (base game or mod) in load order.</summary>
+public sealed record SourceInfo(
+    int LoadOrder,
+    string Kind,
+    string Name,
+    string? ModVersion,
+    string? RemoteFileId,
+    List<string> ReplacePaths);
+
+/// <summary>One override across any level, with source names resolved.</summary>
+public sealed record OverrideRow(
+    string Level,
+    string Kind,
+    string What,
+    string? WinnerSource,
+    string LoserSource,
+    bool IdenticalContent);
+
+/// <summary>A name with an associated count, for the data dictionary.</summary>
+public sealed record NameCount(string Name, long Count);
+
+/// <summary>describe_schema result: the DDL plus a data dictionary.</summary>
+public sealed record SchemaInfo(
+    string Ddl,
+    List<NameCount> EntityTypes,
+    List<NameCount> ReferenceKinds,
+    List<NameCount> SymbolKinds,
+    List<NameCount> OverrideLevels,
+    List<string> Languages);
+
+/// <summary>read_query result: column names and rows (as column-keyed maps).</summary>
+public sealed record QueryResult(
+    List<string> Columns,
+    List<Dictionary<string, object?>> Rows,
+    int RowCount,
+    bool Truncated);

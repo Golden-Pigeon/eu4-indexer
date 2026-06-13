@@ -132,10 +132,12 @@ and forward traversal of the causal graph); `find_by_condition` (what is gated
 by a flag/variable/trigger); `trace_to_goal` (bounded backward-chaining: what
 sequence of actions reaches an event/flag/variable); `find_dangling` (flags
 checked but never set, events fired but undefined — candidate bugs);
-`search_localisation` (markup-stripped,
-CJK-friendly text search); `search_everything` (cross-type search when the
-content type is unknown); and `resolve_symbol` (explain a trigger/effect, or
-expand a scripted definition).
+`search_localisation` (markup-stripped, CJK-friendly text search);
+`search_everything` (cross-type search when the content type is unknown);
+`resolve_symbol` (explain a trigger/effect, or expand a scripted definition);
+`list_sources` and `get_overrides` (load order and who-overrode-what);
+`describe_schema` (the DDL and a data dictionary — call it first); and
+`read_query` (a guarded read-only SELECT escape hatch).
 
 Register it with an MCP client, e.g. Claude Code / Desktop:
 

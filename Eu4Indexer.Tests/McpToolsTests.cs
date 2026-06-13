@@ -122,6 +122,24 @@ public class McpToolsTests
             var dangling = PlanningTools.FindDangling(db, "all", 10);
             Assert.NotNull(dangling);
             Assert.All(dangling, d => Assert.False(string.IsNullOrEmpty(d.TargetKey)));
+
+            // list_sources includes the base game
+            var sources = CatalogTools.ListSources(db);
+            Assert.Contains(sources, s => s.Kind == "base_game");
+
+            // describe_schema reports a usable data dictionary
+            var schema = CatalogTools.DescribeSchema(db);
+            Assert.NotEmpty(schema.EntityTypes);
+            Assert.Contains("english", schema.Languages);
+            Assert.Contains(schema.ReferenceKinds, k => k.Name == "fires_event");
+
+            // get_overrides runs and returns a list
+            Assert.NotNull(CatalogTools.GetOverrides(db, null, null, 10));
+
+            // read_query: a SELECT returns rows; a non-SELECT is rejected
+            var query = QueryTools.ReadQuery(db, "SELECT count(*) AS n FROM entities", 5);
+            Assert.Single(query.Rows);
+            Assert.Throws<ArgumentException>(() => QueryTools.ReadQuery(db, "DELETE FROM entities", 5));
         }
         finally
         {
