@@ -19,3 +19,6 @@ outputs/
 # Local environment (keep .env.example tracked)
 .env*
 !.env.example
+
+# JetBrains IDE
+.idea/
