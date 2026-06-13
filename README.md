@@ -17,14 +17,20 @@ only implementation today, with room to add CK3 / HOI4 / Stellaris / VIC3 later.
 | `Eu4Indexer.Cli` | F# (Argu) | `index` and `detect` commands |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 
-CWTools is referenced from local source (`../cwtools/CWTools/CWTools.fsproj`,
-0.6.0-alpha) because the published NuGet (0.3.0, 2019) predates the rule format
-used by the current EU4 config repo.
+CWTools is referenced from source via a git submodule at `external/cwtools`
+(a [fork](https://github.com/Golden-Pigeon/cwtools) pinned to a build that
+compiles against the current .NET SDK / FSharp.Core) because the published
+NuGet (0.3.0, 2019) predates the rule format used by the current EU4 config repo.
 
 ## Prerequisites
 
 - .NET 9 SDK
-- A checkout of [`cwtools`](https://github.com/cwtools/cwtools) at `../cwtools`
+- Clone with submodules so CWTools is fetched:
+  ```bash
+  git clone --recursive https://github.com/Golden-Pigeon/eu4-indexer.git
+  # already cloned? then:
+  git submodule update --init --recursive
+  ```
 - The EU4 config rules repo, e.g.
   [`cwtools-eu4-config`](https://github.com/cwtools/cwtools-eu4-config)
 - A copy of the EU4 game files, and optionally mod directories

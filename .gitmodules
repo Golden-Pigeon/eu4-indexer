@@ -1,0 +1,4 @@
+[submodule "external/cwtools"]
+	path = external/cwtools
+	url = https://github.com/Golden-Pigeon/cwtools.git
+	branch = eu4-indexer-build
