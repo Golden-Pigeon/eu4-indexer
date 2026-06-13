@@ -139,6 +139,10 @@ checked but never set, events fired but undefined — candidate bugs);
 `describe_schema` (the DDL and a data dictionary — call it first); and
 `read_query` (a guarded read-only SELECT escape hatch).
 
+[`Eu4Indexer.Mcp/SKILL.md`](Eu4Indexer.Mcp/SKILL.md) teaches an agent the EU4
+causal model and three workflows (explain an entity, explain a phenomenon / find
+a bug, and plan how to reach a goal) for combining these tools.
+
 Register it with an MCP client, e.g. Claude Code / Desktop:
 
 ```json
