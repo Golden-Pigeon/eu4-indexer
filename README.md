@@ -117,5 +117,25 @@ no-op automatically when those paths are absent; point them with the
 
 ## License
 
-[MIT](LICENSE). This project links [CWTools](https://github.com/cwtools/cwtools),
-which is also MIT-licensed.
+[MIT](LICENSE) covers the **source code of this tool only**. This project links
+[CWTools](https://github.com/cwtools/cwtools), which is also MIT-licensed.
+
+## Disclaimer
+
+- **Not affiliated with Paradox Interactive.** This is an unofficial, fan-made
+  tool. It is not developed, endorsed, sponsored by, or affiliated with Paradox
+  Interactive AB. *Europa Universalis IV*, EU4, and all related names, assets,
+  and trademarks are the property of Paradox Interactive.
+- **No game content is included or distributed.** This repository ships only
+  source code. It reads game and mod files that already exist on your own
+  machine; you must own a legitimate copy of the game to use it.
+- **The generated database contains third-party content.** Any index you build
+  embeds text and script owned by Paradox Interactive and/or the respective mod
+  authors. That output is intended for personal, research, and interoperability
+  use. You are responsible for not redistributing it in violation of those
+  parties' rights, the game EULA, or mod licenses (e.g. Steam Workshop terms).
+- **Mod content belongs to its authors.** Override and localisation data
+  extracted from mods remains the property of the mod creators.
+- **No warranty.** The software is provided "as is", without warranty of any
+  kind, as stated in the [LICENSE](LICENSE). Use at your own risk; the authors
+  are not liable for any data loss or other damages.
