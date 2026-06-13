@@ -334,6 +334,8 @@ type LocRow =
       LocKey: string
       Language: string
       Value: string
+      /// Value with inline formatting markup (color codes, icons) stripped, for search.
+      ValuePlain: string
       VersionNum: int option
       FileId: int
       SourceId: int
@@ -364,3 +366,23 @@ type LocOverride =
       WinnerSourceId: int option
       LoserSourceId: int
       IdenticalContent: bool }
+
+// ---------------------------------------------------------------------------
+// Reference / causal graph (derived from the script tree)
+// ---------------------------------------------------------------------------
+
+/// One edge in the cross-reference graph: a script node referencing another
+/// piece of content. See Schema's `refs` table for the controlled vocabularies
+/// of RefKind and TargetType.
+type ReferenceRow =
+    { FromEntityId: int64
+      /// trigger | effect | mtth | option_trigger | option_effect
+      FromContext: string
+      RefKind: string
+      TargetType: string
+      TargetKey: string
+      NodeId: int64
+      /// The enclosing event option's clause node, when inside one.
+      OptionNodeId: int64 option
+      /// True when the reference sits inside a NOT wrapper (odd nesting).
+      Negated: bool }

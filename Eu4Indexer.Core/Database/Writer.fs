@@ -282,16 +282,29 @@ type Writer(dbPath: string) =
 
     member _.InsertLocRow(row: LocRow, isEffective: bool) =
         bind
-            (prepared "INSERT INTO localisation VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)" 9)
+            (prepared "INSERT INTO localisation VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)" 10)
             [ box row.LocId
               box row.LocKey
               box row.Language
               box row.Value
+              box row.ValuePlain
               opt row.VersionNum
               box row.FileId
               box row.SourceId
               boolInt row.IsReplace
               boolInt isEffective ]
+
+    member _.InsertReference(r: ReferenceRow) =
+        bind
+            (prepared "INSERT INTO refs VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8)" 8)
+            [ box r.FromEntityId
+              box r.FromContext
+              box r.RefKind
+              box r.TargetType
+              box r.TargetKey
+              box r.NodeId
+              opt r.OptionNodeId
+              boolInt r.Negated ]
 
     member _.InsertLocOverride(ov: LocOverride) =
         bind

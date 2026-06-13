@@ -158,6 +158,64 @@ public class IntegrationTests
         }
     }
 
+    [Fact]
+    public void Index_BuildsReferenceGraph_AndStripsLocMarkup()
+    {
+        var gameDir = TestPaths.GameDir;
+        var configDir = TestPaths.ConfigDir;
+        if (gameDir is null || configDir is null) return;
+
+        var modDir = TestPaths.ExampleModDir;
+        var mods = modDir is null ? ToFs() : ToFs(modDir);
+        var dbPath = Path.Combine(Path.GetTempPath(), $"eu4_refs_{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var result = Pipeline.runWithPaths(
+                GameAdapterModule.eu4, gameDir, mods, configDir, dbPath,
+                skipGeneric: false, withFts: true, languages: ToFs("english"),
+                log: FuncConvert.FromAction<string>(_ => { }));
+
+            Assert.True(result.IsOk, result.IsError ? result.ErrorValue : "");
+
+            using var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
+            conn.Open();
+
+            // graph is populated across the key reference kinds
+            Assert.True(Scalar(conn, "SELECT count(*) FROM refs") > 1000);
+            Assert.True(Scalar(conn, "SELECT count(*) FROM refs WHERE ref_kind='fires_event'") > 0);
+            Assert.True(Scalar(conn, "SELECT count(*) FROM refs WHERE ref_kind='calls_scripted_trigger'") > 0);
+            Assert.True(Scalar(conn, "SELECT count(*) FROM refs WHERE ref_kind='on_action_fires'") > 0);
+
+            // flags are scope-qualified, not lumped into a single 'flag' type
+            Assert.True(Scalar(conn,
+                "SELECT count(DISTINCT target_type) FROM refs WHERE ref_kind IN ('sets_flag','checks_flag')") >= 2);
+            Assert.Equal(0, Scalar(conn, "SELECT count(*) FROM refs WHERE target_type='flag'"));
+
+            // every ref node_id resolves to a real script node (FK integrity)
+            Assert.Equal(0, Scalar(conn,
+                "SELECT count(*) FROM refs r WHERE NOT EXISTS " +
+                "(SELECT 1 FROM script_nodes n WHERE n.node_id=r.node_id)"));
+
+            // localisation markup is stripped: no section sign survives in value_plain
+            Assert.Equal(0, Scalar(conn,
+                $"SELECT count(*) FROM localisation WHERE value_plain LIKE '%' || char(167) || '%'"));
+            // but the raw value still carried it somewhere (so stripping did work)
+            Assert.True(Scalar(conn,
+                $"SELECT count(*) FROM localisation WHERE value LIKE '%' || char(167) || '%'") > 0);
+
+            // trigram FTS over the plain text returns hits for a substring
+            Assert.True(Scalar(conn,
+                "SELECT count(*) FROM loc_fts WHERE loc_fts MATCH 'power'") > 0);
+        }
+        finally
+        {
+            File.Delete(dbPath);
+            File.Delete(dbPath + "-wal");
+            File.Delete(dbPath + "-shm");
+        }
+    }
+
     private static long Scalar(SqliteConnection conn, string sql)
     {
         using var cmd = conn.CreateCommand();

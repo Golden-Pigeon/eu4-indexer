@@ -6,7 +6,7 @@ namespace Eu4Indexer.Core.Database
 module Schema =
 
     [<Literal>]
-    let UserVersion = 1
+    let UserVersion = 2
 
     let tablesSql =
         """
@@ -205,6 +205,9 @@ CREATE TABLE localisation (
     loc_key      TEXT NOT NULL,
     language     TEXT NOT NULL,
     value        TEXT NOT NULL,
+    -- value with inline formatting markup (color codes, icons) stripped, for
+    -- search; see Localisation.stripMarkup
+    value_plain  TEXT NOT NULL DEFAULT '',
     version_num  INTEGER,
     file_id      INTEGER NOT NULL REFERENCES files(file_id),
     source_id    INTEGER NOT NULL REFERENCES sources(source_id),
@@ -223,6 +226,27 @@ CREATE TABLE loc_overrides (
     winner_source_id  INTEGER REFERENCES sources(source_id),
     loser_source_id   INTEGER NOT NULL REFERENCES sources(source_id),
     identical_content INTEGER NOT NULL DEFAULT 0
+);
+
+-- Derived causal/cross-reference graph: one row per reference a script node
+-- makes to another piece of content (fires an event, sets/checks a flag or
+-- variable, applies/checks a modifier, calls a scripted trigger/effect, or an
+-- on_action firing an event). target_type is scope-qualified for flags so a
+-- has_country_flag check is not confused with a set_global_flag set.
+CREATE TABLE refs (
+    ref_id         INTEGER PRIMARY KEY,
+    from_entity_id INTEGER NOT NULL REFERENCES entities(entity_id),
+    from_context   TEXT NOT NULL,   -- trigger|effect|mtth|option_trigger|option_effect
+    ref_kind       TEXT NOT NULL,   -- fires_event|sets_flag|checks_flag|sets_variable|
+                                    -- checks_variable|applies_modifier|checks_modifier|
+                                    -- calls_scripted_trigger|calls_scripted_effect|on_action_fires
+    target_type    TEXT NOT NULL,   -- event|country_flag|global_flag|province_flag|ruler_flag|
+                                    -- variable|modifier|scripted_trigger|scripted_effect
+    target_key     TEXT NOT NULL,
+    node_id        INTEGER NOT NULL REFERENCES script_nodes(node_id),
+    -- the enclosing event option's clause node, when this reference is inside one
+    option_node_id INTEGER REFERENCES script_nodes(node_id),
+    negated        INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -256,17 +280,25 @@ CREATE INDEX idx_loc_key_lang ON localisation(loc_key, language);
 CREATE INDEX idx_loc_source   ON localisation(source_id);
 CREATE INDEX idx_lovr_key ON loc_overrides(loc_key, language);
 CREATE INDEX idx_lovr_winner ON loc_overrides(winner_source_id);
+CREATE INDEX idx_refs_target ON refs(target_type, target_key);
+CREATE INDEX idx_refs_kind   ON refs(ref_kind);
+CREATE INDEX idx_refs_from   ON refs(from_entity_id);
 """
 
     let ftsSql =
         """
+-- Localisation search uses the markup-stripped text and the trigram tokenizer
+-- so CJK substrings (e.g. a colour-coded Chinese title) are findable.
 CREATE VIRTUAL TABLE loc_fts USING fts5(
-    value, content='localisation', content_rowid='loc_id'
+    value_plain, content='localisation', content_rowid='loc_id', tokenize='trigram'
 );
+-- Entity script search keeps unicode61 but treats '_' as part of a token so
+-- Paradox identifiers like set_country_flag stay whole.
 CREATE VIRTUAL TABLE entity_fts USING fts5(
-    raw_text, content='entities', content_rowid='entity_id'
+    raw_text, content='entities', content_rowid='entity_id',
+    tokenize="unicode61 tokenchars '_'"
 );
-INSERT INTO loc_fts(rowid, value) SELECT loc_id, value FROM localisation;
+INSERT INTO loc_fts(rowid, value_plain) SELECT loc_id, value_plain FROM localisation;
 INSERT INTO entity_fts(rowid, raw_text) SELECT entity_id, raw_text FROM entities;
 """
 
@@ -294,4 +326,14 @@ CREATE VIEW v_override_summary AS
     SELECT 'localisation', kind, loc_key || ' (' || language || ')',
            winner_source_id, loser_source_id, identical_content
     FROM loc_overrides;
+
+-- Unifies the two ways an entity grants a modifier: applied as an effect
+-- (add_country_modifier = { name = M }) vs defined inline in the body of an
+-- idea/reform/etc. (the modifier key appears directly in modifier_values).
+CREATE VIEW v_modifier_grants AS
+    SELECT from_entity_id AS entity_id, target_key AS modifier_key, 'applied' AS how
+    FROM refs WHERE ref_kind = 'applies_modifier'
+    UNION ALL
+    SELECT entity_id, modifier_key, 'defined'
+    FROM modifier_values;
 """

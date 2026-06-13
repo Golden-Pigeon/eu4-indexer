@@ -21,6 +21,7 @@
     <Compile Include="Extractors/Modifiers.fs" />
     <Compile Include="Extractors/Generic.fs" />
     <Compile Include="OverrideResolution.fs" />
+    <Compile Include="ReferenceExtractor.fs" />
     <Compile Include="Localisation.fs" />
     <Compile Include="Database/Schema.fs" />
     <Compile Include="Database/Writer.fs" />

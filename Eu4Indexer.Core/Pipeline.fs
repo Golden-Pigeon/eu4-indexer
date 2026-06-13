@@ -159,6 +159,19 @@ module Pipeline =
         let entityRes =
             OverrideResolution.resolveEntities fileById loadOrderOf fileOverrideKindByLoser entities
 
+        // Reference / causal graph (events fired, flags/variables set & checked,
+        // modifiers applied, scripted trigger/effect calls, on_action firings).
+        let scriptedNames (typeName: string) =
+            payloads
+            |> List.choose (fun p ->
+                if p.Entity.EntityType = typeName then Some p.Entity.EntityKey else None)
+            |> Set.ofList
+
+        let references =
+            ReferenceExtractor.extract (scriptedNames "scripted_trigger") (scriptedNames "scripted_effect") payloads
+
+        log (sprintf "References: %d" references.Length)
+
         // Localisation parsing + key-level override resolution.
         log "Parsing localisation..."
 
@@ -220,7 +233,10 @@ module Pipeline =
                 writer.InsertPayload(p, isEffective)
 
             for o in entityRes.Overrides do
-                writer.InsertEntityOverride o)
+                writer.InsertEntityOverride o
+
+            for r in references do
+                writer.InsertReference r)
 
         writer.InTransaction(fun () ->
             for row in locRows do

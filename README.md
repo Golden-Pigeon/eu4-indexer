@@ -82,9 +82,16 @@ relationships are recorded explicitly — see below.
   Non-Latin mods (e.g. Chinese) that hide their text in the `l_english` slot
   using EU4's [special-escape](https://gist.github.com/bruceCzK/96ad6e054111f929ed67291552d36334)
   encoding are decoded back to real UTF-8 on the way in; ASCII/Latin text is
-  untouched.
+  untouched. A `value_plain` column holds the value with inline formatting
+  markup (`§` colour codes, `£` icons) stripped; `loc_fts` indexes it with the
+  trigram tokenizer so colour-split CJK text stays searchable.
 - Override tables: `file_overrides`, `entity_overrides`, `loc_overrides`,
   unified by the `v_override_summary` view (level + kind + winner/loser source).
+- `refs` — derived causal graph: one row per reference a script node makes
+  (fires an event, sets/checks a flag or variable, applies/checks a modifier,
+  calls a scripted trigger/effect, on_action firing). Flags are scope-qualified
+  (`country_flag`/`global_flag`/`province_flag`/`ruler_flag`) and conditions
+  carry a `negated` flag. Powers "what triggers X / what would reach goal Y".
 - FTS5: `loc_fts`, `entity_fts` for full-text search over localisation and raw
   entity script.
 
