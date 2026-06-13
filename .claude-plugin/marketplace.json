@@ -1,0 +1,24 @@
+{
+  "name": "eu4-indexer",
+  "owner": {
+    "name": "Golden-Pigeon",
+    "url": "https://github.com/Golden-Pigeon"
+  },
+  "metadata": {
+    "description": "EU4 script index tooling: the eu4-indexer Claude Code plugin (MCP server + guided skill).",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "eu4-indexer",
+      "source": "./",
+      "description": "Query and reason over a Europa Universalis IV script index: explain events/missions/decisions, trace what triggers what, find bugs, and plan how to reach a goal. Bundles the eu4 MCP server and a guided skill.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Golden-Pigeon"
+      },
+      "homepage": "https://github.com/Golden-Pigeon/eu4-indexer",
+      "license": "MIT"
+    }
+  ]
+}

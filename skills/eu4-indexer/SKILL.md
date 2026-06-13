@@ -54,7 +54,8 @@ the server (see "Setup" at the end) instead of guessing from training data.
 | `describe_schema` | Data dictionary + DDL. Start here. |
 | `explain_entity` | One entity: conditions, options (condition vs effects), inbound + outbound refs. |
 | `what_triggers` | Reverse: what fires/references this (and an event's firing model). |
-| `what_does_it_do` | Forward: what this fires/sets/checks/applies/calls. |
+| `what_does_it_do` | Forward: what this directly fires/sets/checks/applies/calls. |
+| `analyze_effects` | Effect-level explanation: custom tooltips, hidden effects, fired events, state changes, and downstream variable/flag consequences. Use proactively for “what does this do?” answers. |
 | `find_by_condition` | What is gated by a flag/variable/scripted trigger. |
 | `trace_to_goal` | Backward-chain candidate action sequences to reach an event/flag/variable. |
 | `find_dangling` | Flags checked but never set, events fired but undefined — candidate bugs. |
@@ -69,17 +70,27 @@ the server (see "Setup" at the end) instead of guessing from training data.
 1. `explain_entity(entityType, entityKey)`. Read the script tree by each node's
    `context`: `trigger` nodes are conditions, `effect` nodes are what happens, options
    split into `option_trigger` (when the option is shown) and `option_effect`.
-2. For "what makes this happen", read `triggeredBy` (or call `what_triggers` for the
+2. **Always call `analyze_effects(entityType, entityKey)` for user-facing “what does this
+   do?” explanations.** Do not stop at `custom_tooltip` prose or direct refs: read direct
+   effects, hidden effects, fired events, state changes, and downstream consequences.
+3. If `analyze_effects` reports variables/flags changed, proactively explain what later
+   entities check them. Mention thresholds such as `check_variable value = 10` and summarize
+   the later entity's effects when relevant.
+4. For "what makes this happen", read `triggeredBy` (or call `what_triggers` for the
    firing model: triggered-only vs MTTH vs on_action).
-3. Expand any scripted trigger/effect named in the conditions with `resolve_symbol`.
-4. Localised title/description text is in the returned `localisation`.
+5. Expand any scripted trigger/effect named in the conditions with `resolve_symbol`.
+6. Localised title/description text is in the returned `localisation`.
 
 ## Workflow 2 — Explain a phenomenon / find a bug (type unknown)
 
 1. `search_everything(text)` (or `search_localisation` if it's UI text) to find the
    entity behind the phenomenon.
 2. `explain_entity` on the candidate; read its conditions.
-3. If a condition is gated by a flag/variable, use `find_by_condition` to see what else
+3. If the user's phrase is a vague UI tooltip or option text (e.g. "economic situation
+   worsens", "something happens", "will have consequences"), treat it as a clue, not the
+   effect itself. Run `analyze_effects` on the containing entity and explain the associated
+   hidden effects, fired events, state changes, and downstream consumers.
+4. If a condition is gated by a flag/variable, use `find_by_condition` to see what else
    depends on it, and check whether it is ever produced. A flag that `find_dangling`
    reports as **checked but never set** (or an event fired but undefined) is a strong
    "unreachable / likely bug" signal — but confirm it isn't engine-set or dynamically
@@ -110,6 +121,10 @@ the server (see "Setup" at the end) instead of guessing from training data.
   for exact script identifiers prefer the entity/graph tools or `read_query` on
   `script_nodes.key` / `script_nodes.value`. `value_plain` is the searchable text; the
   raw `value` keeps colour codes.
+- **Tooltip prose is not the full effect**: `custom_tooltip` often says vague things like
+  "the economy worsens" while the real gameplay effect is in sibling `hidden_effect`, a
+  fired hidden event, or a variable/flag that unlocks later content. Use `analyze_effects`
+  proactively whenever explaining effects.
 - **Numeric trigger quirk**: in EU4 a numeric condition written `x = 5` usually means
   `x >= 5`. Keep this in mind when explaining conditions.
 

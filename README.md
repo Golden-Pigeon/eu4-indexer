@@ -146,9 +146,61 @@ find a bug, and plan how to reach a goal) for combining these tools.
 ### Install as a Claude Code plugin
 
 This repo is also a Claude Code plugin (`.claude-plugin/plugin.json` + `.mcp.json`
-+ the skill). Build an index, set `EU4_DB`, and install the plugin from this
-directory; the bundled `.mcp.json` launches the server via
-`${CLAUDE_PLUGIN_ROOT}/Eu4Indexer.Mcp` against `${EU4_DB}`.
++ the skill). **Install it from a local clone, not directly from a remote URL.**
+The bundled MCP config currently launches the local `Eu4Indexer.Mcp` project by
+relative path, so Claude Code must be started from this repository directory for
+the MCP server to resolve that path correctly.
+
+1. Clone the repository locally, with submodules:
+
+   ```bash
+   git clone --recursive https://github.com/Golden-Pigeon/eu4-indexer.git
+   cd eu4-indexer
+   ```
+
+2. Build an index database from your local EU4 installation and any mods you want
+   the agent to inspect:
+
+   ```bash
+   dotnet run -c Release --project Eu4Indexer.Cli -- index \
+       --game-dir /path/to/eu4 \
+       --mod /path/to/mod \
+       --config-dir /path/to/cwtools-eu4-config \
+       --db /absolute/path/to/eu4.db
+   ```
+
+3. Set the required environment variable before starting Claude Code:
+
+   ```bash
+   export EU4_DB=/absolute/path/to/eu4.db
+   ```
+
+   `EU4_DB` must point to the database you built. If it is missing or points to a
+   stale database, the MCP server will not be able to answer EU4 content queries.
+
+4. Install the plugin from the local checkout:
+
+   ```bash
+   claude plugin install /absolute/path/to/eu4-indexer
+   ```
+
+5. Start Claude Code from this repository directory so the relative MCP project
+   path in `.mcp.json` resolves correctly:
+
+   ```bash
+   cd /absolute/path/to/eu4-indexer
+   claude
+   ```
+
+6. Reload plugins in Claude Code:
+
+   ```text
+   /reload-plugins
+   ```
+
+After installation, use the bundled `/eu4-indexer:eu4-indexer` skill for EU4
+content questions. The plugin starts the MCP server using `.mcp.json` from this
+repository directory and reads the index path from `${EU4_DB}`.
 
 ### Manual registration
 

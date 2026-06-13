@@ -7,7 +7,7 @@
         "-c",
         "Release",
         "--project",
-        "${CLAUDE_PLUGIN_ROOT}/Eu4Indexer.Mcp",
+        "Eu4Indexer.Mcp",
         "--",
         "--db",
         "${EU4_DB}"
