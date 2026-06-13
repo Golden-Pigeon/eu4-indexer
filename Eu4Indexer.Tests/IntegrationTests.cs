@@ -108,10 +108,67 @@ public class IntegrationTests
         }
     }
 
+    [Fact]
+    public void Index_SpecialEscapedLoc_DecodesToReadableText()
+    {
+        var gameDir = TestPaths.GameDir;
+        var configDir = TestPaths.ConfigDir;
+        var modDir = TestPaths.ExampleModDir;
+        if (gameDir is null || configDir is null || modDir is null) return;
+
+        var locFile = Path.Combine(modDir, "localisation", "soyo_assimilation_l_english.yml");
+        if (!File.Exists(locFile)) return; // mod without the escaped fixture
+
+        var dbPath = Path.Combine(Path.GetTempPath(), $"eu4_loc_{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var result = Pipeline.runWithPaths(
+                GameAdapterModule.eu4, gameDir, ToFs(modDir), configDir, dbPath,
+                skipGeneric: true, withFts: false, languages: ToFs("english"),
+                log: FuncConvert.FromAction<string>(_ => { }));
+
+            Assert.True(result.IsOk, result.IsError ? result.ErrorValue : "");
+
+            using var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
+            conn.Open();
+
+            var value = StringScalar(conn,
+                "SELECT value FROM localisation " +
+                "WHERE loc_key='soyo_culture_assimilation_altaic_assimilated_desc' AND is_effective=1");
+
+            // decoded to real Chinese, with no leftover escape control bytes
+            Assert.Contains("土库曼火枪手", value);
+            Assert.Contains("我们的军队", value);
+            Assert.DoesNotContain('\u0010', value);
+            Assert.DoesNotContain('\u0011', value);
+            Assert.DoesNotContain('\u0012', value);
+            Assert.DoesNotContain('\u0013', value);
+
+            // and no special-escape markers survive anywhere in the english loc
+            Assert.Equal(0, Scalar(conn,
+                "SELECT count(*) FROM localisation WHERE language='english' " +
+                "AND value GLOB '*' || char(16) || '*'"));
+        }
+        finally
+        {
+            File.Delete(dbPath);
+            File.Delete(dbPath + "-wal");
+            File.Delete(dbPath + "-shm");
+        }
+    }
+
     private static long Scalar(SqliteConnection conn, string sql)
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    private static string StringScalar(SqliteConnection conn, string sql)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        return cmd.ExecuteScalar() as string ?? "";
     }
 }

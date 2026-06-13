@@ -73,6 +73,10 @@ relationships are recorded explicitly — see below.
   `depth`/`parent_id`, and a `symbol_id` tagging known triggers/effects/modifiers.
 - `symbols` — trigger/effect/modifier dictionary distilled from the `.cwt` config.
 - `localisation` — every language, with `is_replace` and `is_effective`.
+  Non-Latin mods (e.g. Chinese) that hide their text in the `l_english` slot
+  using EU4's [special-escape](https://gist.github.com/bruceCzK/96ad6e054111f929ed67291552d36334)
+  encoding are decoded back to real UTF-8 on the way in; ASCII/Latin text is
+  untouched.
 - Override tables: `file_overrides`, `entity_overrides`, `loc_overrides`,
   unified by the `v_override_summary` view (level + kind + winner/loser source).
 - FTS5: `loc_fts`, `entity_fts` for full-text search over localisation and raw
