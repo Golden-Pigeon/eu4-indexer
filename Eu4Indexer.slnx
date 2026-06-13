@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Eu4Indexer.Cli/Eu4Indexer.Cli.fsproj" />
+  <Project Path="Eu4Indexer.Core/Eu4Indexer.Core.fsproj" />
+  <Project Path="Eu4Indexer.Tests/Eu4Indexer.Tests.csproj" />
+</Solution>

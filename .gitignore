@@ -1,0 +1,17 @@
+testcwtools/
+.fake
+
+# .NET build output
+bin/
+obj/
+*.user
+
+# Generated index databases
+*.db
+*.db-wal
+*.db-shm
+
+# CodeGraph index
+.codegraph/
+
+outputs/
