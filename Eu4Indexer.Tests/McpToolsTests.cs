@@ -100,6 +100,28 @@ public class McpToolsTests
                 var users = GraphTools.FindByCondition(db, checkedFlag, "country_flag", null, 50);
                 Assert.NotEmpty(users);
             }
+
+            // trace_to_goal: a flag that is set somewhere is reachable with a chain
+            var setFlag = db.Query(
+                """
+                SELECT target_key FROM refs
+                WHERE ref_kind = 'sets_flag' AND target_type = 'country_flag'
+                GROUP BY target_key ORDER BY count(*) DESC LIMIT 1
+                """,
+                r => r.GetString(0), null, 1).FirstOrDefault();
+
+            if (setFlag is not null)
+            {
+                var trace = PlanningTools.TraceToGoal(db, "flag", setFlag, "country_flag", 4);
+                Assert.True(trace.Reachable);
+                Assert.NotEmpty(trace.Paths);
+                Assert.All(trace.Paths, p => Assert.NotEmpty(p.Steps));
+            }
+
+            // find_dangling runs and returns a bounded, well-formed list
+            var dangling = PlanningTools.FindDangling(db, "all", 10);
+            Assert.NotNull(dangling);
+            Assert.All(dangling, d => Assert.False(string.IsNullOrEmpty(d.TargetKey)));
         }
         finally
         {

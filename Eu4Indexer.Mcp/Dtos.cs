@@ -81,3 +81,30 @@ public sealed record ConditionUser(
     string RefKind,
     string FromContext,
     bool Negated);
+
+/// <summary>One step in a reachability chain: an entity that produces a state.</summary>
+public sealed record TraceStep(
+    string Produces,
+    string Via,
+    string EntityType,
+    string EntityKey,
+    string Role);
+
+/// <summary>A candidate chain of actions, ordered from a base action to the goal.</summary>
+public sealed record TracePath(List<TraceStep> Steps);
+
+/// <summary>trace_to_goal result: candidate chains plus the modelling caveat.</summary>
+public sealed record TraceResult(
+    string Target,
+    bool Reachable,
+    List<TracePath> Paths,
+    bool Truncated,
+    string Note);
+
+/// <summary>A reference whose target is never set/defined (likely unreachable / a bug).</summary>
+public sealed record DanglingRef(
+    string Kind,
+    string TargetType,
+    string TargetKey,
+    long ReferencedBy,
+    string? SampleReferencer);
