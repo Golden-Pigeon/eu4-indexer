@@ -2,44 +2,55 @@ namespace Eu4Indexer.Core.Database
 
 open System
 open System.Collections.Generic
+open System.Data.Common
 open System.Text.Json
 open Microsoft.Data.Sqlite
 open Eu4Indexer.Core
 
-/// Single-writer bulk loader. Creates a fresh database, inserts with prepared
-/// statements inside caller-scoped transactions, and applies indexes/FTS/views
-/// at finalize time (bulk-load-then-index is far faster than maintaining
-/// indexes during load).
-type Writer(dbPath: string) =
+/// Backend-agnostic surface the pipeline writes the index through. Implemented
+/// once by RelationalWriter; the concrete backend is chosen at construction.
+type IIndexWriter =
+    inherit IDisposable
+    abstract InTransaction: (unit -> unit) -> unit
+    abstract InsertSource: Source -> unit
+    abstract InsertFile: GameFile -> unit
+    abstract UpdateFileParseStatus: int * ParseStatus -> unit
+    abstract InsertParseError: ParseErrorRow -> unit
+    abstract InsertFileOverride: FileOverride -> unit
+    abstract InsertSymbol: Symbol -> unit
+    abstract InsertConfigType: ConfigTypeInfo -> unit
+    abstract InsertPayload: EntityPayload * bool -> unit
+    abstract InsertEntityOverride: EntityOverride -> unit
+    abstract InsertLocRow: LocRow * bool -> unit
+    abstract InsertReference: ReferenceRow -> unit
+    abstract InsertLocOverride: LocOverride -> unit
+    abstract Finalize: (string * string) list * bool -> int
 
-    do
-        if IO.File.Exists dbPath then
-            IO.File.Delete dbPath
+/// Single-writer bulk loader over an open ADO.NET connection. Inserts with
+/// prepared statements inside caller-scoped transactions, and applies
+/// indexes/search/views at finalize time (bulk-load-then-index is far faster
+/// than maintaining indexes during load). The SQLite and PostgreSQL backends
+/// differ only by the injected Dialect.
+type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
 
-        for suffix in [ "-wal"; "-shm" ] do
-            let p = dbPath + suffix
-            if IO.File.Exists p then IO.File.Delete p
-
-    let connection =
-        let conn = new SqliteConnection(sprintf "Data Source=%s" dbPath)
-        conn.Open()
-        conn
+    // Active transaction, assigned to every command so both backends agree on
+    // scope. Raw BEGIN/COMMIT works for SQLite but Npgsql tracks transaction
+    // state internally and breaks on it, so we use real ADO.NET transactions.
+    let mutable currentTx: DbTransaction = null
 
     let exec (sql: string) =
         use cmd = connection.CreateCommand()
         cmd.CommandText <- sql
+        cmd.Transaction <- currentTx
         cmd.ExecuteNonQuery() |> ignore
 
     do
-        // fresh-build pragmas; durability is restored in Finalize
-        exec "PRAGMA journal_mode=OFF"
-        exec "PRAGMA synchronous=OFF"
-        exec "PRAGMA temp_store=MEMORY"
-        exec "PRAGMA cache_size=-200000"
-        exec "PRAGMA foreign_keys=OFF"
-        exec Schema.tablesSql
+        for s in dialect.SetupSql do
+            exec s
 
-    let preparedCommands = Dictionary<string, SqliteCommand>()
+        exec dialect.TablesSql
+
+    let preparedCommands = Dictionary<string, DbCommand>()
 
     /// Prepared command with positional parameters $1..$n, cached per SQL text.
     let prepared (sql: string) (paramCount: int) =
@@ -50,16 +61,19 @@ type Writer(dbPath: string) =
             cmd.CommandText <- sql
 
             for i in 1..paramCount do
-                cmd.Parameters.Add(cmd.CreateParameter(ParameterName = sprintf "$%d" i)) |> ignore
+                let p = cmd.CreateParameter()
+                dialect.NameParam p i
+                cmd.Parameters.Add p |> ignore
 
-            cmd.Prepare()
+            dialect.PrepareCommand cmd
             preparedCommands[sql] <- cmd
             cmd
 
-    let bind (cmd: SqliteCommand) (values: obj list) =
+    let bind (cmd: DbCommand) (values: obj list) =
+        cmd.Transaction <- currentTx
+
         values
-        |> List.iteri (fun i v ->
-            cmd.Parameters[i].Value <- if isNull v then box DBNull.Value else v)
+        |> List.iteri (fun i v -> cmd.Parameters[i].Value <- if isNull v then box DBNull.Value else v)
 
         cmd.ExecuteNonQuery() |> ignore
 
@@ -72,21 +86,27 @@ type Writer(dbPath: string) =
 
     let json (o: 'a) : obj = box (JsonSerializer.Serialize o)
 
+    /// INSERT whose leading primary key is filled by the backend (NULL for
+    /// SQLite rowid, DEFAULT for a Postgres identity column).
+    let autoSql (table: string) (cols: string) =
+        sprintf "INSERT INTO %s VALUES (%s,%s)" table dialect.AutoId cols
+
     member _.InTransaction(work: unit -> unit) =
-        exec "BEGIN"
+        use tx = connection.BeginTransaction()
+        currentTx <- tx
 
         try
-            work ()
-            exec "COMMIT"
-        with _ ->
-            exec "ROLLBACK"
-            reraise ()
+            try
+                work ()
+                tx.Commit()
+            with _ ->
+                tx.Rollback()
+                reraise ()
+        finally
+            currentTx <- null
 
     member _.InsertSource(source: Source) =
-        let cmd =
-            prepared
-                "INSERT INTO sources VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"
-                10
+        let cmd = prepared "INSERT INTO sources VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)" 10
 
         let d = source.Descriptor
 
@@ -109,14 +129,10 @@ type Writer(dbPath: string) =
                 bind (prepared "INSERT INTO source_tags VALUES ($1,$2)" 2) [ box source.SourceId; box tag ]
 
             for dep in List.distinct info.Dependencies do
-                bind
-                    (prepared "INSERT INTO source_dependencies VALUES ($1,$2)" 2)
-                    [ box source.SourceId; box dep ]
+                bind (prepared "INSERT INTO source_dependencies VALUES ($1,$2)" 2) [ box source.SourceId; box dep ]
 
             for path in List.distinct info.ReplacePaths do
-                bind
-                    (prepared "INSERT INTO source_replace_paths VALUES ($1,$2)" 2)
-                    [ box source.SourceId; box path ]
+                bind (prepared "INSERT INTO source_replace_paths VALUES ($1,$2)" 2) [ box source.SourceId; box path ]
         | None -> ()
 
     member _.InsertFile(file: GameFile) =
@@ -144,7 +160,7 @@ type Writer(dbPath: string) =
 
     member _.InsertFileOverride(ov: FileOverride) =
         bind
-            (prepared "INSERT INTO file_overrides VALUES (NULL,$1,$2,$3,$4,$5,$6,$7)" 7)
+            (prepared (autoSql "file_overrides" "$1,$2,$3,$4,$5,$6,$7") 7)
             [ box ov.Kind.DbValue
               box ov.RelativePath
               box ov.LoserFileId
@@ -164,7 +180,7 @@ type Writer(dbPath: string) =
 
     member _.InsertConfigType(t: ConfigTypeInfo) =
         bind
-            (prepared "INSERT OR IGNORE INTO config_types VALUES ($1,$2,$3,$4,$5,$6)" 6)
+            (prepared (dialect.IgnoreConflict "INSERT INTO config_types VALUES ($1,$2,$3,$4,$5,$6)") 6)
             [ box t.TypeName
               opt t.NameField
               json t.Paths
@@ -229,7 +245,7 @@ type Writer(dbPath: string) =
 
         for o in payload.EventOptions do
             bind
-                (prepared "INSERT INTO event_options VALUES (NULL,$1,$2,$3,$4)" 4)
+                (prepared (autoSql "event_options" "$1,$2,$3,$4") 4)
                 [ box o.EntityId; box o.OptionIdx; opt o.NameKey; box o.NodeId ]
 
         match payload.MissionDetails with
@@ -265,12 +281,12 @@ type Writer(dbPath: string) =
 
         for loc in payload.EntityLocs do
             bind
-                (prepared "INSERT OR IGNORE INTO entity_localisation VALUES ($1,$2,$3)" 3)
+                (prepared (dialect.IgnoreConflict "INSERT INTO entity_localisation VALUES ($1,$2,$3)") 3)
                 [ box loc.EntityId; box loc.Role; box loc.LocKey ]
 
     member _.InsertEntityOverride(ov: EntityOverride) =
         bind
-            (prepared "INSERT INTO entity_overrides VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8)" 8)
+            (prepared (autoSql "entity_overrides" "$1,$2,$3,$4,$5,$6,$7,$8") 8)
             [ box ov.Kind.DbValue
               box ov.EntityType
               box ov.EntityKey
@@ -296,7 +312,7 @@ type Writer(dbPath: string) =
 
     member _.InsertReference(r: ReferenceRow) =
         bind
-            (prepared "INSERT INTO refs VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8)" 8)
+            (prepared (autoSql "refs" "$1,$2,$3,$4,$5,$6,$7,$8") 8)
             [ box r.FromEntityId
               box r.FromContext
               box r.RefKind
@@ -308,7 +324,7 @@ type Writer(dbPath: string) =
 
     member _.InsertLocOverride(ov: LocOverride) =
         bind
-            (prepared "INSERT INTO loc_overrides VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8)" 8)
+            (prepared (autoSql "loc_overrides" "$1,$2,$3,$4,$5,$6,$7,$8") 8)
             [ box ov.LocKey
               box ov.Language
               box ov.Kind.DbValue
@@ -318,14 +334,15 @@ type Writer(dbPath: string) =
               box ov.LoserSourceId
               boolInt ov.IdenticalContent ]
 
-    /// Build indexes, optional FTS, views; record metadata; restore durability.
+    /// Build indexes, optional search, views; record metadata; restore
+    /// durability. Returns the referential-integrity violation count.
     member this.Finalize(meta: (string * string) list, withFts: bool) =
-        exec Schema.indexesSql
+        exec dialect.IndexesSql
 
         if withFts then
-            exec Schema.ftsSql
+            exec dialect.SearchSql
 
-        exec Schema.viewsSql
+        exec dialect.ViewsSql
 
         this.InTransaction(fun () ->
             let cmd = prepared "INSERT INTO meta VALUES ($1,$2)" 2
@@ -333,21 +350,29 @@ type Writer(dbPath: string) =
             for key, value in meta do
                 bind cmd [ box key; box value ])
 
-        // verify referential integrity since foreign_keys was OFF during load
-        let violations =
-            use cmd = connection.CreateCommand()
-            cmd.CommandText <- "PRAGMA foreign_key_check"
-            use reader = cmd.ExecuteReader()
-            let mutable count = 0
-            while reader.Read() do
-                count <- count + 1
-            count
+        let violations = dialect.VerifyIntegrity connection
 
-        exec "ANALYZE"
-        exec (sprintf "PRAGMA user_version=%d" Schema.UserVersion)
-        exec "PRAGMA journal_mode=WAL"
-        exec "PRAGMA synchronous=NORMAL"
+        for s in dialect.FinalizeSql do
+            exec s
+
+        dialect.RecordVersion exec
         violations
+
+    interface IIndexWriter with
+        member this.InTransaction work = this.InTransaction work
+        member this.InsertSource source = this.InsertSource source
+        member this.InsertFile file = this.InsertFile file
+        member this.UpdateFileParseStatus(fileId, status) = this.UpdateFileParseStatus(fileId, status)
+        member this.InsertParseError error = this.InsertParseError error
+        member this.InsertFileOverride ov = this.InsertFileOverride ov
+        member this.InsertSymbol symbol = this.InsertSymbol symbol
+        member this.InsertConfigType t = this.InsertConfigType t
+        member this.InsertPayload(payload, isEffective) = this.InsertPayload(payload, isEffective)
+        member this.InsertEntityOverride ov = this.InsertEntityOverride ov
+        member this.InsertLocRow(row, isEffective) = this.InsertLocRow(row, isEffective)
+        member this.InsertReference r = this.InsertReference r
+        member this.InsertLocOverride ov = this.InsertLocOverride ov
+        member this.Finalize(meta, withFts) = this.Finalize(meta, withFts)
 
     interface IDisposable with
         member _.Dispose() =
@@ -355,4 +380,25 @@ type Writer(dbPath: string) =
                 cmd.Dispose()
 
             connection.Dispose()
-            SqliteConnection.ClearAllPools()
+            dialect.OnDispose()
+
+/// Construction of the backend-specific writer.
+module Writer =
+
+    let private deleteSqliteFiles (dbPath: string) =
+        if IO.File.Exists dbPath then
+            IO.File.Delete dbPath
+
+        for suffix in [ "-wal"; "-shm" ] do
+            let p = dbPath + suffix
+            if IO.File.Exists p then IO.File.Delete p
+
+    /// Fresh SQLite file database.
+    let createSqlite (dbPath: string) : IIndexWriter =
+        deleteSqliteFiles dbPath
+        let conn = new SqliteConnection(sprintf "Data Source=%s" dbPath)
+        conn.Open()
+        new RelationalWriter(conn, Dialect.sqlite) :> IIndexWriter
+
+    /// Pick the backend from the target string. Today SQLite is the only one.
+    let create (target: string) : IIndexWriter = createSqlite target
