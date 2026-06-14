@@ -300,7 +300,7 @@ module Pipeline =
                 writer.InsertParseError e)
 
         let meta =
-            [ "indexer_version", "0.1.0"
+            [ "indexer_version", AppInfo.Version
               "game_id", adapter.GameId
               "config_repo_path", request.ConfigDir
               "languages", String.concat "," languages

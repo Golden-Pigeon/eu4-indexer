@@ -81,11 +81,20 @@ type PlaysetArgs =
             match this with
             | Name _ -> "playset name or id to show mods for (default: list all playsets)"
 
+type VersionArgs =
+    | [<Hidden>] Unused
+
+    interface IArgParserTemplate with
+        member this.Usage =
+            match this with
+            | Unused -> ""
+
 type CliArgs =
     | [<CliPrefix(CliPrefix.None)>] Index of ParseResults<IndexArgs>
     | [<CliPrefix(CliPrefix.None)>] Detect of ParseResults<DetectArgs>
     | [<CliPrefix(CliPrefix.None)>] Workshop of ParseResults<WorkshopArgs>
     | [<CliPrefix(CliPrefix.None)>] Playset of ParseResults<PlaysetArgs>
+    | [<CliPrefix(CliPrefix.None)>] Version of ParseResults<VersionArgs>
 
     interface IArgParserTemplate with
         member this.Usage =
@@ -94,6 +103,7 @@ type CliArgs =
             | Detect _ -> "show resolved game dir, mods, and predicted file overrides"
             | Workshop _ -> "list installed Steam Workshop items (id and mod name)"
             | Playset _ -> "list launcher playsets, or the mods of one playset"
+            | Version _ -> "print the eu4indexer version and exit"
 
 let private defaultConfigDir () =
     match Environment.GetEnvironmentVariable "EU4_CONFIG_DIR" with
@@ -297,6 +307,10 @@ let private runPlayset (args: ParseResults<PlaysetArgs>) =
 
                 ExitOk
 
+let private runVersion (_: ParseResults<VersionArgs>) =
+    printfn "eu4indexer %s" AppInfo.Version
+    ExitOk
+
 [<EntryPoint>]
 let main argv =
     let parser =
@@ -310,6 +324,7 @@ let main argv =
         | Detect detectArgs -> runDetect detectArgs
         | Workshop workshopArgs -> runWorkshop workshopArgs
         | Playset playsetArgs -> runPlayset playsetArgs
+        | Version versionArgs -> runVersion versionArgs
     with
     | :? ArguParseException as ex ->
         printfn "%s" ex.Message
