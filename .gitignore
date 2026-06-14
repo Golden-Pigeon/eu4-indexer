@@ -22,3 +22,6 @@ outputs/
 
 # JetBrains IDE
 .idea/
+
+# Visual Studio
+.vs/
