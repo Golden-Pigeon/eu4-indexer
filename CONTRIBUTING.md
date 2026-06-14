@@ -37,6 +37,9 @@ set up, the conventions the codebase follows, and how to land a change.
    - `EU4_CONFIG_DIR` — a [`cwtools-eu4-config`](https://github.com/cwtools/cwtools-eu4-config) checkout.
    - `EU4_EXAMPLE_MOD_DIR` — a mod directory (drives the override and
      special-escape localisation tests).
+   - `EU4_PG_CONN` — (optional) a PostgreSQL connection string; enables the
+     Postgres export test, which indexes into SQLite and Postgres and compares
+     them. The role needs `CREATE EXTENSION pg_trgm`.
 
    `.env` is git-ignored; never commit game files, mods, or generated `*.db`
    indexes.
@@ -45,7 +48,7 @@ set up, the conventions the codebase follows, and how to land a change.
 
 | Project | Language | Purpose |
 |---|---|---|
-| `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, reference graph, SQLite writer |
+| `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, reference graph, SQLite/PostgreSQL writer |
 | `Eu4Indexer.Cli` | F# (Argu) | `index` and `detect` commands |
 | `Eu4Indexer.Mcp` | C# | Read-only MCP server exposing query tools to agents |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |

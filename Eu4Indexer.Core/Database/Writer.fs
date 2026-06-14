@@ -5,6 +5,7 @@ open System.Collections.Generic
 open System.Data.Common
 open System.Text.Json
 open Microsoft.Data.Sqlite
+open Npgsql
 open Eu4Indexer.Core
 
 /// Backend-agnostic surface the pipeline writes the index through. Implemented
@@ -400,5 +401,64 @@ module Writer =
         conn.Open()
         new RelationalWriter(conn, Dialect.sqlite) :> IIndexWriter
 
-    /// Pick the backend from the target string. Today SQLite is the only one.
-    let create (target: string) : IIndexWriter = createSqlite target
+    /// Convert a libpq URI (postgres://user:pass@host:port/db) to a keyword
+    /// connection string, since Npgsql expects the keyword form.
+    let private pgConnFromUri (uri: string) =
+        let u = Uri uri
+        let userInfo = u.UserInfo.Split(':')
+        let b = NpgsqlConnectionStringBuilder()
+        b.Host <- u.Host
+
+        if u.Port > 0 then
+            b.Port <- u.Port
+
+        if userInfo.Length > 0 && userInfo[0] <> "" then
+            b.Username <- Uri.UnescapeDataString userInfo[0]
+
+        if userInfo.Length > 1 then
+            b.Password <- Uri.UnescapeDataString userInfo[1]
+
+        let db = u.AbsolutePath.TrimStart('/')
+
+        if db <> "" then
+            b.Database <- db
+
+        b.ToString()
+
+    /// PostgreSQL target; accepts either a keyword connection string or a
+    /// postgres:// URI. Existing eu4-indexer tables are dropped and rebuilt.
+    let createPostgres (target: string) : IIndexWriter =
+        let lower = target.ToLowerInvariant()
+
+        let connString =
+            if lower.StartsWith "postgres://" || lower.StartsWith "postgresql://" then
+                pgConnFromUri target
+            else
+                target
+
+        // Note: we deliberately do not enable auto-prepare. These positional
+        // parameters carry no explicit NpgsqlDbType, so a server-prepared
+        // statement would lock a parameter's type from its first value — and a
+        // nullable column whose first row is NULL would then reject a later
+        // typed value. Unprepared execution lets Postgres infer each parameter
+        // type from the target column on every insert, which is always correct.
+        let conn = new NpgsqlConnection(connString)
+        conn.Open()
+        new RelationalWriter(conn, PostgresSchema.dialect) :> IIndexWriter
+
+    /// True when the target string denotes a PostgreSQL database rather than a
+    /// SQLite file path.
+    let isPostgresTarget (target: string) =
+        let lower = target.Trim().ToLowerInvariant()
+        lower.StartsWith "postgres://"
+        || lower.StartsWith "postgresql://"
+        || lower.Contains "host="
+
+    /// Pick the backend from the target string: a postgres:// URI or a keyword
+    /// connection string (containing host=) goes to PostgreSQL; anything else is
+    /// treated as a SQLite file path.
+    let create (target: string) : IIndexWriter =
+        if isPostgresTarget target then
+            createPostgres target
+        else
+            createSqlite target

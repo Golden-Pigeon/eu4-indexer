@@ -17,6 +17,20 @@ public static class TestPaths
 
     public static string? ExampleModDir => Resolve("EU4_EXAMPLE_MOD_DIR");
 
+    /// PostgreSQL connection string for the export integration test. Unlike the
+    /// directory paths, this is a raw value (no filesystem check).
+    public static string? PostgresConn => ResolveRaw("EU4_PG_CONN");
+
+    private static string? ResolveRaw(string name)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+
+        if (string.IsNullOrEmpty(value))
+            DotEnv.Value.TryGetValue(name, out value);
+
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
     private static string? Resolve(string name)
     {
         var path = Environment.GetEnvironmentVariable(name);
