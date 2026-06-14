@@ -22,8 +22,12 @@ type GameAdapter =
       Languages: string list
       /// Steam app id used for workshop content discovery
       SteamAppId: string
-      /// Candidate base-game install dirs to probe, most likely first
-      GameDirCandidates: unit -> string list
+      /// Candidate Steam *client* install dirs to probe (the parent of
+      /// `steamapps`). Discovery reads each one's libraryfolders.vdf to find
+      /// every library wherever it lives.
+      SteamClientDirs: unit -> string list
+      /// The game's folder name under `steamapps/common`
+      SteamGameDir: string
       /// Candidate "user data" dirs holding mod/*.mod descriptors
       ModDirCandidates: unit -> string list
       /// Subdirectories of the game dir whose presence validates a detection hit
@@ -39,23 +43,60 @@ module GameAdapter =
     let private home () =
         Environment.GetFolderPath Environment.SpecialFolder.UserProfile
 
-    /// Steam library roots to probe per platform. The indexer runs on any OS
-    /// against game dirs that may have been copied from another machine, so we
-    /// probe all platform conventions unconditionally and let existence checks
-    /// decide.
-    let private steamLibraryRoots () =
+    /// Steam client dir(s) read from the Windows registry. This is the only
+    /// reliable source when the *client itself* was installed off the default
+    /// drive (the registry records exactly where Steam lives). Empty on
+    /// non-Windows, where the registry doesn't exist.
+    let private steamRegistryDirs () =
+        let isWindows =
+            Runtime.InteropServices.RuntimeInformation.IsOSPlatform Runtime.InteropServices.OSPlatform.Windows
+
+        if not isWindows then
+            []
+        else
+            let read (root: Microsoft.Win32.RegistryKey) (subkey: string) (name: string) =
+                try
+                    use key = root.OpenSubKey subkey
+
+                    if isNull key then
+                        None
+                    else
+                        match key.GetValue name with
+                        | :? string as s when not (String.IsNullOrWhiteSpace s) -> Some s
+                        | _ -> None
+                with _ ->
+                    None
+
+            [ read Microsoft.Win32.Registry.CurrentUser @"Software\Valve\Steam" "SteamPath"
+              read Microsoft.Win32.Registry.LocalMachine @"SOFTWARE\WOW6432Node\Valve\Steam" "InstallPath"
+              read Microsoft.Win32.Registry.LocalMachine @"SOFTWARE\Valve\Steam" "InstallPath" ]
+            |> List.choose id
+
+    /// Steam *client* install dirs per platform (the parent of `steamapps`).
+    /// The client itself sits at its default location on virtually every
+    /// machine even when game *libraries* are moved to other drives; the
+    /// libraryfolders.vdf under here enumerates every library wherever it lives.
+    /// The indexer runs on any OS against dirs that may have been copied from
+    /// another machine, so we probe all platform conventions unconditionally
+    /// and let existence checks decide.
+    let private steamClientDirs () =
         let h = home ()
-        [ // Windows
-          @"C:\Program Files (x86)\Steam\steamapps"
-          @"C:\Program Files\Steam\steamapps"
-          @"D:\Steam\steamapps"
-          @"D:\SteamLibrary\steamapps"
-          @"E:\SteamLibrary\steamapps"
-          // macOS
-          Path.Combine(h, "Library/Application Support/Steam/steamapps")
-          // Linux
-          Path.Combine(h, ".steam/steam/steamapps")
-          Path.Combine(h, ".local/share/Steam/steamapps") ]
+
+        let defaults =
+            [ // Windows
+              @"C:\Program Files (x86)\Steam"
+              @"C:\Program Files\Steam"
+              // macOS
+              Path.Combine(h, "Library/Application Support/Steam")
+              // Linux
+              Path.Combine(h, ".steam/steam")
+              Path.Combine(h, ".local/share/Steam")
+              // Linux (Flatpak)
+              Path.Combine(h, ".var/app/com.valvesoftware.Steam/.local/share/Steam") ]
+
+        // Registry first: it's authoritative when the client lives off the
+        // default drive (defaults would never find it otherwise).
+        steamRegistryDirs () @ defaults |> List.distinct
 
     /// Returns the language of a localisation file, if its name matches the
     /// EU4 convention `*_l_<language>.yml`.
@@ -70,10 +111,8 @@ module GameAdapter =
           LocalisationFolder = "localisation"
           Languages = [ "english"; "french"; "german"; "spanish" ]
           SteamAppId = "236850"
-          GameDirCandidates =
-            fun () ->
-                steamLibraryRoots ()
-                |> List.map (fun root -> Path.Combine(root, "common", "Europa Universalis IV"))
+          SteamClientDirs = steamClientDirs
+          SteamGameDir = "Europa Universalis IV"
           ModDirCandidates =
             fun () ->
                 let h = home ()

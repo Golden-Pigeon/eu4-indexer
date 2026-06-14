@@ -45,6 +45,55 @@ module Discovery =
         && adapter.ValidationSubdirs
            |> List.forall (fun sub -> probe.DirExists(Path.Combine(dir, sub)))
 
+    /// Library-folder paths declared in a Steam `libraryfolders.vdf`. Handles
+    /// the modern format (`"path"  "<dir>"` inside numbered blocks) and the
+    /// legacy format (`"<n>"  "<dir>"`). Returned paths are library roots (the
+    /// dirs that contain `steamapps`), with `\\` unescaped. App-id/size pairs in
+    /// the legacy `apps` block are filtered out by requiring a path-like value.
+    let parseSteamLibraryPaths (vdf: string) : string list =
+        let unescape (s: string) = s.Replace("\\\\", "\\")
+        let looksLikePath (s: string) = s.Contains '\\' || s.Contains '/' || s.Contains ':'
+
+        let matchPaths pattern =
+            System.Text.RegularExpressions.Regex.Matches(vdf, pattern)
+            |> Seq.map (fun m -> m.Groups[1].Value)
+
+        let modern = matchPaths "\"path\"\\s+\"([^\"]+)\""
+        let legacy = matchPaths "(?m)^\\s*\"\\d+\"\\s+\"([^\"]+)\""
+
+        Seq.append modern legacy
+        |> Seq.map unescape
+        |> Seq.filter looksLikePath
+        |> Seq.distinct
+        |> List.ofSeq
+
+    /// All Steam library roots (dirs that contain a `steamapps` folder),
+    /// discovered from each client dir's libraryfolders.vdf (so libraries on
+    /// non-default drives are found), plus the client dirs themselves as a
+    /// fallback when no vdf is present.
+    let steamLibraryRoots (adapter: GameAdapter) (probe: FsProbe) : string list =
+        let clientDirs = adapter.SteamClientDirs()
+
+        let fromVdf =
+            clientDirs
+            |> List.collect (fun client ->
+                [ Path.Combine(client, "steamapps", "libraryfolders.vdf")
+                  Path.Combine(client, "config", "libraryfolders.vdf") ]
+                |> List.filter probe.FileExists
+                |> List.collect (fun vdf ->
+                    try
+                        parseSteamLibraryPaths (probe.ReadAllText vdf)
+                    with _ ->
+                        []))
+
+        (clientDirs @ fromVdf) |> List.distinct
+
+    /// All candidate game-install dirs across every Steam library.
+    let private steamGameDirCandidates (adapter: GameAdapter) (probe: FsProbe) =
+        steamLibraryRoots adapter probe
+        |> List.map (fun root -> Path.Combine(root, "steamapps", "common", adapter.SteamGameDir))
+        |> List.distinct
+
     /// Resolve the base game directory: explicit value (validated) or probe
     /// the platform's Steam conventions.
     let resolveGameDir (adapter: GameAdapter) (probe: FsProbe) (explicitDir: string option) =
@@ -61,13 +110,13 @@ module Discovery =
                         (String.concat "/" adapter.ValidationSubdirs)
                 )
         | None ->
-            adapter.GameDirCandidates()
+            steamGameDirCandidates adapter probe
             |> List.tryFind (isGameDir adapter probe)
             |> function
                 | Some dir -> Result.Ok dir
                 | None ->
                     Result.Error(
-                        "game directory not found in default Steam locations; pass it explicitly with --game-dir"
+                        "game directory not found via Steam libraries (libraryfolders.vdf); pass it explicitly with --game-dir"
                     )
 
     /// Resolve one explicitly-given mod: either a content directory (containing
