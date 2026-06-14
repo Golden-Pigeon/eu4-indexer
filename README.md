@@ -84,6 +84,84 @@ then `--playset`, then `--auto-mods`.
 Later mods override earlier mods, and any mod overrides the base game. Override
 relationships are recorded explicitly — see below.
 
+### Workshop and playset examples
+
+> The ids, names, and counts below are illustrative placeholders.
+
+List every installed Steam Workshop mod (id + name; reads `descriptor.mod` only,
+no full parse):
+
+```bash
+dotnet run -c Release --project Eu4Indexer.Cli -- workshop
+```
+```text
+Workshop items (3):
+  1000000001   Example Mod A
+  1000000002   Example Mod B
+  1000000003   Example Mod C
+```
+
+Pass ids positionally to show only those:
+
+```bash
+dotnet run -c Release --project Eu4Indexer.Cli -- workshop 1000000001 1000000003
+```
+
+List all launcher playsets (`*` marks the active one):
+
+```bash
+dotnet run -c Release --project Eu4Indexer.Cli -- playset
+```
+```text
+Playsets (2) [* = active]:
+  * My Playset
+    Another Playset
+```
+
+Show one playset's mods with their enabled state (`x` = enabled) and Workshop ids
+— quote a name with spaces, or pass the playset id:
+
+```bash
+dotnet run -c Release --project Eu4Indexer.Cli -- playset "My Playset"
+```
+```text
+Playset 'My Playset' (active) — 3 mods (2 enabled) [x = enabled]:
+  [x] 1000000001   Example Mod A
+  [x] 1000000002   Example Mod B
+  [ ] 1000000003   Example Mod C
+```
+
+Index one or more chosen Workshop mods by id (game dir auto-detected):
+
+```bash
+dotnet run -c Release --project Eu4Indexer.Cli -- index \
+    --workshop-id 1000000001 --workshop-id 1000000002 \
+    --config-dir /path/to/cwtools-eu4-config \
+    --db eu4.db
+```
+
+Index a whole playset's *enabled* mods, in the playset's load order:
+
+```bash
+dotnet run -c Release --project Eu4Indexer.Cli -- index \
+    --playset "My Playset" \
+    --config-dir /path/to/cwtools-eu4-config \
+    --db out.db --verbose
+```
+```text
+Sources: 3 (base game + 2 mods)
+Files: NNNN, file-level overrides: NN
+Writing database: out.db
+Parsing scripts and extracting entities...
+Entities: NNNN, failed files: 0
+References: NNNN
+Parsing localisation...
+Localisation entries: NNNN
+Building indexes and FTS...
+Indexed 3 sources, NNNN files, NNNN entities (NNNN effective), NNNN loc entries.
+Overrides: NNNN. Parse errors: 0. FK violations: 0.
+```
+
 ### Export target (SQLite or PostgreSQL)
 
 `--db` accepts either a **SQLite file path** (the default) or a **PostgreSQL
