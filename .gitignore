@@ -16,6 +16,9 @@ obj/
 
 outputs/
 
+# Release build artifacts (scripts/build-binaries.*)
+dist/
+
 # Local environment (keep .env.example tracked)
 .env*
 !.env.example
