@@ -51,11 +51,18 @@ module FileResolution =
                     [])
 
         candidates
-        |> List.groupBy (fun (_, absPath) -> absPath)
-        |> List.map (fun (absPath, group) ->
+        // Group by the normalized relative path (the DB's uniqueness key), not
+        // the raw absolute path: enumerating a parent folder and a nested child
+        // folder yields the same file under two path strings that differ only by
+        // separator/case (e.g. ...\common\x\f.txt vs ...\common/x\f.txt), which a
+        // raw-string groupBy would fail to collapse into one row.
+        |> List.map (fun (folder, absPath) ->
+            folder, absPath, normalize (Path.GetRelativePath(source.RootPath, absPath)))
+        |> List.groupBy (fun (_, _, relPath) -> relPath)
+        |> List.map (fun (relPath, group) ->
             // most specific (longest) folder wins the attribution
-            let folder = group |> List.map fst |> List.maxBy String.length
-            let relPath = normalize (Path.GetRelativePath(source.RootPath, absPath))
+            let folder = group |> List.map (fun (f, _, _) -> f) |> List.maxBy String.length
+            let absPath = group |> List.map (fun (_, a, _) -> a) |> List.head
             folder, absPath, relPath)
         |> List.sortBy (fun (_, _, relPath) -> relPath)
 
