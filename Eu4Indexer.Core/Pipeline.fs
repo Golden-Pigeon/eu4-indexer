@@ -201,7 +201,7 @@ module Pipeline =
 
         // Write to the database.
         log (sprintf "Writing database: %s" request.DbPath)
-        use writer = new Writer(request.DbPath)
+        use writer = Writer.create request.DbPath
 
         writer.InTransaction(fun () ->
             for s in sources do
