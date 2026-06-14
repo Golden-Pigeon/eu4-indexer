@@ -6,9 +6,13 @@
 # For macOS/Linux. On Windows use scripts/build-binaries.ps1 (this script also
 # works under Git Bash / WSL if `dotnet`, `tar`, and `zip` are on PATH).
 #
+# Archives are named eu4indexer-<version>-<rid>; --version defaults to the value
+# in Eu4Indexer.Core/AppInfo.fs so it matches the release tag.
+#
 # Usage:
-#   ./scripts/build-binaries.sh                      # all six targets
-#   ./scripts/build-binaries.sh linux-x64 osx-arm64  # only the listed RIDs
+#   ./scripts/build-binaries.sh                          # all six targets
+#   ./scripts/build-binaries.sh linux-x64 osx-arm64      # only the listed RIDs
+#   ./scripts/build-binaries.sh --version 0.1.0          # override version label
 
 set -euo pipefail
 
@@ -20,13 +24,27 @@ COMPONENTS=(
   "mcp:Eu4Indexer.Mcp/Eu4Indexer.Mcp.csproj"
 )
 
-RIDS=("$@")
-if [ ${#RIDS[@]} -eq 0 ]; then RIDS=("${ALL_RIDS[@]}"); fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$REPO_ROOT/dist"
-VERSION="$(date +%Y%m%d)"
+
+VERSION=""
+RIDS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) VERSION="$2"; shift 2 ;;
+    --version=*) VERSION="${1#*=}"; shift ;;
+    *) RIDS+=("$1"); shift ;;
+  esac
+done
+if [ ${#RIDS[@]} -eq 0 ]; then RIDS=("${ALL_RIDS[@]}"); fi
+
+if [ -z "$VERSION" ]; then
+  # Default to the single source of truth in AppInfo.fs (let Version = "x.y.z").
+  VERSION="$(sed -nE 's/.*Version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+    "$REPO_ROOT/Eu4Indexer.Core/AppInfo.fs" | head -1)"
+  [ -z "$VERSION" ] && VERSION="$(date +%Y%m%d)"
+fi
 
 mkdir -p "$DIST_DIR"
 
