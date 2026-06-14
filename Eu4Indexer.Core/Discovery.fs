@@ -221,3 +221,112 @@ module Discovery =
                     ([], [])
 
             List.rev results, List.rev warnings
+
+    /// A Steam Workshop item for the game: numeric id, content directory, and
+    /// mod name. The name is a cheap read of descriptor.mod only — mod contents
+    /// are not enumerated or parsed.
+    type WorkshopItem =
+        { WorkshopId: string
+          ContentPath: string
+          Name: string }
+
+    /// The workshop content dirs (`steamapps/workshop/content/<appid>`) across
+    /// all Steam libraries.
+    let private workshopContentDirs (adapter: GameAdapter) (probe: FsProbe) =
+        steamLibraryRoots adapter probe
+        |> List.map (fun root -> Path.Combine(root, "steamapps", "workshop", "content", adapter.SteamAppId))
+        |> List.distinct
+
+    /// Enumerate installed Steam Workshop items, reading each descriptor.mod
+    /// name only (no content parsing). Sorted by name.
+    let discoverWorkshopItems (adapter: GameAdapter) (probe: FsProbe) : WorkshopItem list =
+        workshopContentDirs adapter probe
+        |> List.collect probe.ListDirs
+        |> List.choose (fun itemDir ->
+            let workshopId = Path.GetFileName(itemDir.TrimEnd('/', '\\'))
+
+            // workshop item dirs are numeric ids; skip anything else
+            if workshopId = "" || not (workshopId |> Seq.forall System.Char.IsDigit) then
+                None
+            else
+                let descriptor = Path.Combine(itemDir, "descriptor.mod")
+
+                let name =
+                    if probe.FileExists descriptor then
+                        match ModDescriptor.parseText "descriptor.mod" (probe.ReadAllText descriptor) with
+                        | Result.Ok info -> info.Name
+                        | Result.Error _ -> workshopId
+                    else
+                        workshopId
+
+                Some
+                    { WorkshopId = workshopId
+                      ContentPath = itemDir
+                      Name = name })
+        |> List.sortBy (fun w -> w.Name)
+
+    /// Resolve a workshop id to a mod by locating its content dir across all
+    /// Steam libraries, then resolving its descriptor.
+    let resolveWorkshopMod (adapter: GameAdapter) (probe: FsProbe) (workshopId: string) : Result<DiscoveredMod, string> =
+        workshopContentDirs adapter probe
+        |> List.map (fun content -> Path.Combine(content, workshopId))
+        |> List.tryFind probe.DirExists
+        |> function
+            | Some dir -> resolveExplicitMod probe dir
+            | None -> Result.Error(sprintf "workshop item %s not found in any Steam library" workshopId)
+
+    /// Path to the launcher's playset db (launcher-v2.sqlite), if a Paradox
+    /// user-data dir holding one is present.
+    let launcherDbPath (adapter: GameAdapter) (probe: FsProbe) : string option =
+        adapter.ModDirCandidates()
+        |> List.map (fun d -> Path.Combine(d, "launcher-v2.sqlite"))
+        |> List.tryFind probe.FileExists
+
+    /// Resolve one launcher playset mod row to a DiscoveredMod. Prefers the
+    /// absolute dirPath, then the Workshop id, then the descriptor relative to
+    /// the user-data dir.
+    let private resolvePlaysetMod
+        (adapter: GameAdapter)
+        (probe: FsProbe)
+        (dataDir: string)
+        (m: Launcher.PlaysetMod)
+        : Result<DiscoveredMod, string> =
+        let viaDescriptor () =
+            match m.Descriptor with
+            | Some rel -> resolveExplicitMod probe (Path.Combine(dataDir, rel))
+            | None -> Result.Error(sprintf "mod '%s': no resolvable path (unsubscribed?)" m.Name)
+
+        match m.DirPath with
+        | Some d when probe.DirExists d -> resolveExplicitMod probe d
+        | _ ->
+            match m.SteamId |> Option.map (resolveWorkshopMod adapter probe) with
+            | Some(Result.Ok r) -> Result.Ok r
+            | _ -> viaDescriptor ()
+
+    /// Resolve the *enabled* mods of a playset (by name or id) to DiscoveredMods
+    /// in load order. Returns mods + per-mod warnings; Error if the launcher db
+    /// or the named playset is missing.
+    let resolvePlayset
+        (adapter: GameAdapter)
+        (probe: FsProbe)
+        (nameOrId: string)
+        : Result<DiscoveredMod list * string list, string> =
+        match launcherDbPath adapter probe with
+        | None -> Result.Error "launcher database (launcher-v2.sqlite) not found in the Paradox user-data dir"
+        | Some dbPath ->
+            match Launcher.findPlayset dbPath nameOrId with
+            | None -> Result.Error(sprintf "playset '%s' not found" nameOrId)
+            | Some ps ->
+                let dataDir = Path.GetDirectoryName dbPath
+
+                let mods, warnings =
+                    Launcher.playsetMods dbPath ps.Id
+                    |> List.filter (fun m -> m.Enabled)
+                    |> List.fold
+                        (fun (acc, warns) m ->
+                            match resolvePlaysetMod adapter probe dataDir m with
+                            | Result.Ok dm -> acc @ [ dm ], warns
+                            | Result.Error e -> acc, warns @ [ e ])
+                        ([], [])
+
+                Result.Ok(mods, warnings)

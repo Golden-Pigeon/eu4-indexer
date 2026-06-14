@@ -14,7 +14,7 @@ only implementation today, with room to add CK3 / HOI4 / Stellaris / VIC3 later.
 | Project | Language | Purpose |
 |---|---|---|
 | `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, SQLite writer |
-| `Eu4Indexer.Cli` | F# (Argu) | `index` and `detect` commands |
+| `Eu4Indexer.Cli` | F# (Argu) | `index`, `detect`, `workshop`, and `playset` commands |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 
 CWTools is referenced from source via a git submodule at `external/cwtools`
@@ -55,13 +55,31 @@ dotnet run -c Release --project Eu4Indexer.Cli -- index \
 
 ### Locating the game and mods
 
-- **Game**: pass `--game-dir`, or omit it to auto-detect from the platform's
-  default Steam library locations (Windows / macOS / Linux).
+- **Game**: pass `--game-dir`, or omit it to auto-detect. Auto-detection finds
+  the Steam client (via the Windows registry, or the default install location on
+  macOS / Linux), then reads its `libraryfolders.vdf` to locate every Steam
+  library — so the game is found even when installed on a non-default drive. If
+  detection fails (e.g. a non-standard client location), pass `--game-dir`
+  explicitly.
 - **Mods**: pass `--mod <path>` (repeatable — order is load order; a `.mod`
-  descriptor file or a content directory both work), or use `--auto-mods` to
-  discover enabled mods from the launcher's `dlc_load.json` / `mod/*.mod`
-  descriptors under the Paradox user-data directory.
+  descriptor file or a content directory both work), or `--workshop-id <id>`
+  (repeatable) to pull a subscribed Steam Workshop mod straight from the
+  workshop content dir, or use `--auto-mods` to discover enabled mods from the
+  launcher's `dlc_load.json` / `mod/*.mod` descriptors under the Paradox
+  user-data directory. Load order is `--mod`, then `--workshop-id`, then auto.
+- **Workshop**: run the `workshop` command to list every installed Steam
+  Workshop item as `<id>  <name>` (it reads each `descriptor.mod` name only — no
+  full parse), then feed the ids you want to `--workshop-id`. Pass ids as
+  positional args (`workshop <id> ...`) to show only those.
+- **Playset**: pass `--playset <name-or-id>` to index a launcher playset's
+  *enabled* mods (in the playset's load order), read straight from the
+  launcher's `launcher-v2.sqlite`. Run the `playset` command to list all
+  playsets (`*` marks the active one), or `playset <name-or-id>` to list a
+  playset's mods with their enabled (`x`) state and Workshop ids.
 - **Config**: `--config-dir`, or the `EU4_CONFIG_DIR` environment variable.
+
+Mod-source load order when several are combined: `--mod`, then `--workshop-id`,
+then `--playset`, then `--auto-mods`.
 
 Later mods override earlier mods, and any mod overrides the base game. Override
 relationships are recorded explicitly — see below.
