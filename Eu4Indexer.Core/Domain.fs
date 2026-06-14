@@ -386,3 +386,16 @@ type ReferenceRow =
       OptionNodeId: int64 option
       /// True when the reference sits inside a NOT wrapper (odd nesting).
       Negated: bool }
+
+/// The slim projection of a `script_nodes` row needed to derive references.
+/// Read back from the DB during reference extraction so the full node lists do
+/// not have to be held in memory. `NodeKind`/`Context` are the raw DB strings
+/// ("clause"/"leaf"/"value" and "trigger"/"effect"/"mtth"/"ai_chance"/"metadata").
+type RefNode =
+    { NodeId: int64
+      ParentId: int64 option
+      Depth: int
+      NodeKind: string
+      Context: string
+      Key: string option
+      Value: string option }

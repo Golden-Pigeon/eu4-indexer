@@ -84,15 +84,19 @@ module ReferenceExtractor =
         | Some k -> String.Equals(k, b, StringComparison.OrdinalIgnoreCase)
         | None -> false
 
-    /// Edges for one entity from its flattened script nodes.
-    let private fromPayload
+    /// Edges for one entity from its flattened script nodes, read back from the
+    /// DB (`nodes`) so the full node lists need not be held in memory.
+    /// `optionNodeIds` are the entity's event-option clause node ids; `entityId`
+    /// and `entityType` come from the `entities` row. `NodeKind`/`Context` on a
+    /// RefNode are the raw DB strings.
+    let fromEntity
         (scriptedTriggers: Set<string>)
         (scriptedEffects: Set<string>)
-        (payload: EntityPayload)
+        (optionNodeIds: Set<int64>)
+        (entityId: int64)
+        (entityType: string)
+        (nodes: RefNode list)
         : ReferenceRow list =
-
-        let nodes = payload.Nodes
-        let entityId = payload.Entity.EntityId
 
         let byId = nodes |> List.map (fun n -> n.NodeId, n) |> Map.ofList
 
@@ -103,8 +107,6 @@ module ReferenceExtractor =
             |> List.map (fun (p, xs) -> p, List.map snd xs)
             |> Map.ofList
 
-        let optionNodeIds = payload.EventOptions |> List.map (fun o -> o.NodeId) |> Set.ofList
-
         let rec ancestors (parentId: int64 option) acc =
             match parentId with
             | None -> acc
@@ -114,7 +116,7 @@ module ReferenceExtractor =
                 | None -> acc
 
         // (from_context, enclosing option clause node, negated) for a node.
-        let nodeMeta (node: ScriptNodeRow) =
+        let nodeMeta (node: RefNode) =
             let anc = ancestors node.ParentId []
 
             let negCount =
@@ -129,20 +131,20 @@ module ReferenceExtractor =
 
             let fromContext =
                 match optionNode with
-                | Some _ -> if node.Context = TriggerCtx then "option_trigger" else "option_effect"
-                | None -> node.Context.DbValue
+                | Some _ -> if node.Context = "trigger" then "option_trigger" else "option_effect"
+                | None -> node.Context
 
             fromContext, (optionNode |> Option.map (fun a -> a.NodeId)), (negCount % 2 = 1)
 
         // Direct leaf value, or the named child of a clause (e.g. { id = X }).
-        let targetOf (node: ScriptNodeRow) (childField: string) : string option =
+        let targetOf (node: RefNode) (childField: string) : string option =
             match node.NodeKind with
-            | LeafNode -> validTarget node.Value
-            | ClauseNode ->
+            | "leaf" -> validTarget node.Value
+            | "clause" ->
                 Map.tryFind node.NodeId childrenOf
                 |> Option.defaultValue []
                 |> List.tryPick (fun c -> if keyEquals c.Key childField then validTarget c.Value else None)
-            | BareValueNode -> None
+            | _ -> None // "value" (bare value node)
 
         let makeRow node refKind targetType targetKey =
             let fromContext, optionNodeId, negated = nodeMeta node
@@ -171,7 +173,7 @@ module ReferenceExtractor =
 
         // 2) scripted trigger / effect calls (key names defined by content)
         let isTriggerSide ctx =
-            ctx = TriggerCtx || ctx = MtthCtx || ctx = AiChanceCtx
+            ctx = "trigger" || ctx = "mtth" || ctx = "ai_chance"
 
         let scriptedRefs =
             nodes
@@ -179,13 +181,13 @@ module ReferenceExtractor =
                 match node.Key with
                 | Some key when isTriggerSide node.Context && Set.contains key scriptedTriggers ->
                     Some(makeRow node "calls_scripted_trigger" "scripted_trigger" key)
-                | Some key when node.Context = EffectCtx && Set.contains key scriptedEffects ->
+                | Some key when node.Context = "effect" && Set.contains key scriptedEffects ->
                     Some(makeRow node "calls_scripted_effect" "scripted_effect" key)
                 | _ -> None)
 
         // 3) on_action -> fired events (events = { id... }, random_events = { w = id })
         let onActionRefs =
-            if not (payload.Entity.EntityType.ToLowerInvariant().Contains "on_action") then
+            if not (entityType.ToLowerInvariant().Contains "on_action") then
                 []
             else
                 nodes
@@ -208,12 +210,3 @@ module ReferenceExtractor =
                               Negated = false })))
 
         keywordRefs @ scriptedRefs @ onActionRefs
-
-    /// Build the full reference graph. `scriptedTriggers`/`scriptedEffects` are
-    /// the known scripted definition names (entity keys of those types).
-    let extract
-        (scriptedTriggers: Set<string>)
-        (scriptedEffects: Set<string>)
-        (payloads: EntityPayload list)
-        : ReferenceRow list =
-        payloads |> List.collect (fromPayload scriptedTriggers scriptedEffects)

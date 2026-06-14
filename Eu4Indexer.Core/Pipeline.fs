@@ -117,15 +117,51 @@ module Pipeline =
 
         let locFiles = resolution.Files |> List.filter isLocFile
 
-        // Parse + extract sequentially: CWTools' stringManager is shared mutable state.
-        log "Parsing scripts and extracting entities..."
-
         let mutable parseErrors: ParseErrorRow list = []
         let mutable failedFileIds: Set<int> = Set.empty
 
-        let payloads =
-            scriptFiles
-            |> List.collect (fun file ->
+        // Open the writer up front and run the index in phases, each writing and
+        // releasing its data before the next allocates — so the heavy script
+        // nodes are streamed out per file and never coexist with localisation.
+        // Avoid logging a Postgres connection string (it may carry a password).
+        if Writer.isPostgresTarget request.DbPath then
+            log "Writing database: postgres"
+        else
+            log (sprintf "Writing database: %s" request.DbPath)
+
+        use writer = Writer.create request.DbPath
+
+        // Phase A: static rows (sources/files/file overrides/symbols/config
+        // types). Available immediately and the FK targets for everything later.
+        writer.InTransaction(fun () ->
+            for s in sources do
+                writer.InsertSource s
+
+            for f in resolution.Files do
+                writer.InsertFile f
+
+            for o in resolution.Overrides do
+                writer.InsertFileOverride o
+
+            for sym in catalog.Symbols do
+                writer.InsertSymbol sym
+
+            for t in catalog.TypeDefs do
+                writer.InsertConfigType t)
+
+        // Phase B: parse scripts and write each entity's payload immediately,
+        // freeing its (heavy) script nodes per file. Retain only the lightweight
+        // EntityRecord for override resolution and the scripted trigger/effect
+        // names. Parse + extract sequentially: CWTools' stringManager is shared
+        // mutable state. is_effective is written true here, corrected in Phase B2.
+        log "Parsing scripts and extracting entities..."
+
+        let mutable entitiesRev: EntityRecord list = []
+        let scriptedTriggers = System.Collections.Generic.HashSet<string>()
+        let scriptedEffects = System.Collections.Generic.HashSet<string>()
+
+        writer.InTransaction(fun () ->
+            for file in scriptFiles do
                 match Parsing.parseFile file.AbsolutePath with
                 | Result.Error err ->
                     parseErrors <-
@@ -136,43 +172,86 @@ module Pipeline =
                         :: parseErrors
 
                     failedFileIds <- Set.add file.FileId failedFileIds
-                    []
                 | Result.Ok parsed ->
-                    match coreExtractorFor adapter file.Folder with
-                    | Some EventsFolder -> Events.extract lookups idGen file parsed
-                    | Some MissionsFolder -> Missions.extract lookups idGen file parsed
-                    | Some DecisionsFolder -> Decisions.extract lookups idGen file parsed
-                    | Some EventModifiersFolder -> Modifiers.extract "event_modifier" lookups idGen file parsed
-                    | Some StaticModifiersFolder -> Modifiers.extract "static_modifier" lookups idGen file parsed
-                    | Some TriggeredModifiersFolder ->
-                        Modifiers.extract "triggered_modifier" lookups idGen file parsed
-                    | None ->
-                        if request.SkipGeneric then
-                            []
-                        else
-                            Generic.extract catalog.TypeDefs lookups idGen file parsed)
+                    let payloads =
+                        match coreExtractorFor adapter file.Folder with
+                        | Some EventsFolder -> Events.extract lookups idGen file parsed
+                        | Some MissionsFolder -> Missions.extract lookups idGen file parsed
+                        | Some DecisionsFolder -> Decisions.extract lookups idGen file parsed
+                        | Some EventModifiersFolder -> Modifiers.extract "event_modifier" lookups idGen file parsed
+                        | Some StaticModifiersFolder -> Modifiers.extract "static_modifier" lookups idGen file parsed
+                        | Some TriggeredModifiersFolder ->
+                            Modifiers.extract "triggered_modifier" lookups idGen file parsed
+                        | None ->
+                            if request.SkipGeneric then
+                                []
+                            else
+                                Generic.extract catalog.TypeDefs lookups idGen file parsed
 
-        let entities = payloads |> List.map (fun p -> p.Entity)
-        log (sprintf "Entities: %d, failed files: %d" entities.Length failedFileIds.Count)
+                    for p in payloads do
+                        writer.InsertPayload(p, true)
+                        entitiesRev <- p.Entity :: entitiesRev
 
-        // Entity-level override resolution.
+                        match p.Entity.EntityType with
+                        | "scripted_trigger" -> scriptedTriggers.Add p.Entity.EntityKey |> ignore
+                        | "scripted_effect" -> scriptedEffects.Add p.Entity.EntityKey |> ignore
+                        | _ -> ())
+
+        let entities = List.rev entitiesRev
+        let entityCount = entities.Length
+        log (sprintf "Entities: %d, failed files: %d" entityCount failedFileIds.Count)
+
+        // Phase B2: entity-level override resolution, then correct is_effective
+        // for the (minority) override losers.
         let entityRes =
             OverrideResolution.resolveEntities fileById loadOrderOf fileOverrideKindByLoser entities
 
-        // Reference / causal graph (events fired, flags/variables set & checked,
-        // modifiers applied, scripted trigger/effect calls, on_action firings).
-        let scriptedNames (typeName: string) =
-            payloads
-            |> List.choose (fun p ->
-                if p.Entity.EntityType = typeName then Some p.Entity.EntityKey else None)
-            |> Set.ofList
+        writer.InTransaction(fun () ->
+            for o in entityRes.Overrides do
+                writer.InsertEntityOverride o
 
-        let references =
-            ReferenceExtractor.extract (scriptedNames "scripted_trigger") (scriptedNames "scripted_effect") payloads
+            for KeyValue(entityId, effective) in entityRes.Effectiveness do
+                if not effective then
+                    writer.UpdateEntityEffective(entityId, false))
 
-        log (sprintf "References: %d" references.Length)
+        let effectiveCount =
+            entityRes.Effectiveness |> Map.toSeq |> Seq.filter snd |> Seq.length
 
-        // Localisation parsing + key-level override resolution.
+        // Phase C: derive the reference / causal graph by reading the just-written
+        // script nodes back from the DB one entity at a time, instead of holding
+        // every entity's nodes in memory. The references themselves are small
+        // (same footprint as before); only the script nodes were the cost.
+        let scriptedTriggerSet = Set.ofSeq scriptedTriggers
+        let scriptedEffectSet = Set.ofSeq scriptedEffects
+        let optionNodeIdsByEntity = writer.ReadOptionNodeIds()
+        let references = ResizeArray<ReferenceRow>()
+
+        writer.IterEntityNodesForRefs(fun entityId entityType nodes ->
+            let optionNodeIds =
+                Map.tryFind entityId optionNodeIdsByEntity |> Option.defaultValue Set.empty
+
+            for r in
+                ReferenceExtractor.fromEntity
+                    scriptedTriggerSet
+                    scriptedEffectSet
+                    optionNodeIds
+                    entityId
+                    entityType
+                    nodes do
+                references.Add r)
+
+        log (sprintf "References: %d" references.Count)
+
+        writer.InTransaction(fun () ->
+            for r in references do
+                writer.InsertReference r)
+
+        // The script payloads, entity records and references are no longer
+        // reachable; reclaim before localisation allocates its (large) row set.
+        System.GC.Collect()
+
+        // Phase D: localisation (independent of the script graph), parsed and
+        // written only now so it never coexists with the script payloads.
         log "Parsing localisation..."
 
         let locRows =
@@ -199,50 +278,6 @@ module Pipeline =
 
         log (sprintf "Localisation entries: %d" locRows.Length)
 
-        // Write to the database. Avoid logging a Postgres connection string (it
-        // may carry a password); just name the backend.
-        if Writer.isPostgresTarget request.DbPath then
-            log "Writing database: postgres"
-        else
-            log (sprintf "Writing database: %s" request.DbPath)
-
-        use writer = Writer.create request.DbPath
-
-        writer.InTransaction(fun () ->
-            for s in sources do
-                writer.InsertSource s
-
-            for f in resolution.Files do
-                writer.InsertFile f
-
-            for fileId in failedFileIds do
-                writer.UpdateFileParseStatus(fileId, ParseFailed)
-
-            for e in parseErrors do
-                writer.InsertParseError e
-
-            for o in resolution.Overrides do
-                writer.InsertFileOverride o
-
-            for sym in catalog.Symbols do
-                writer.InsertSymbol sym
-
-            for t in catalog.TypeDefs do
-                writer.InsertConfigType t)
-
-        writer.InTransaction(fun () ->
-            for p in payloads do
-                let isEffective =
-                    Map.tryFind p.Entity.EntityId entityRes.Effectiveness |> Option.defaultValue true
-
-                writer.InsertPayload(p, isEffective)
-
-            for o in entityRes.Overrides do
-                writer.InsertEntityOverride o
-
-            for r in references do
-                writer.InsertReference r)
-
         writer.InTransaction(fun () ->
             for row in locRows do
                 let isEffective =
@@ -252,6 +287,17 @@ module Pipeline =
 
             for o in locRes.Overrides do
                 writer.InsertLocOverride o)
+
+        let locCount = locRows.Length
+
+        // Parse failures (script + loc) recorded together at the end, preserving
+        // the original insertion order (loc-then-script, from the prepends above).
+        writer.InTransaction(fun () ->
+            for fileId in failedFileIds do
+                writer.UpdateFileParseStatus(fileId, ParseFailed)
+
+            for e in parseErrors do
+                writer.InsertParseError e)
 
         let meta =
             [ "indexer_version", "0.1.0"
@@ -263,15 +309,12 @@ module Pipeline =
         log "Building indexes and FTS..."
         let violations = writer.Finalize(meta, request.WithFts)
 
-        let effectiveCount =
-            entityRes.Effectiveness |> Map.toSeq |> Seq.filter snd |> Seq.length
-
         Result.Ok
             { SourceCount = sources.Length
               FileCount = resolution.Files.Length
-              EntityCount = entities.Length
+              EntityCount = entityCount
               EffectiveEntityCount = effectiveCount
-              LocCount = locRows.Length
+              LocCount = locCount
               ParseErrorCount = parseErrors.Length
               OverrideCount =
                 resolution.Overrides.Length + entityRes.Overrides.Length + locRes.Overrides.Length
