@@ -6,12 +6,22 @@
 # Runs on Windows (Windows PowerShell 5.1 or PowerShell 7+) and, since it is
 # plain pwsh, on macOS/Linux too. The bash equivalent is build-binaries.sh.
 #
+# Archives are named eu4indexer-<version>-<rid>; -Version defaults to the value
+# in Eu4Indexer.Core/AppInfo.fs so it matches the release tag.
+#
 # Usage:
-#   ./scripts/build-binaries.ps1                      # all six targets
-#   ./scripts/build-binaries.ps1 linux-x64 osx-arm64  # only the listed RIDs
+#   ./scripts/build-binaries.ps1                          # all six targets
+#   ./scripts/build-binaries.ps1 linux-x64 osx-arm64      # only the listed RIDs
+#   ./scripts/build-binaries.ps1 -Version 0.1.0           # override version label
 
 [CmdletBinding()]
-param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $Rids)
+param(
+    # -Version is named-only (because $Rids declares an explicit Position, every
+    # parameter without a Position becomes named-only), so bare arguments are
+    # always treated as RIDs rather than being captured by -Version.
+    [Parameter()] [string] $Version,
+    [Parameter(Position = 0, ValueFromRemainingArguments = $true)] [string[]] $Rids
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -27,7 +37,13 @@ $Components = [ordered]@{
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DistDir = Join-Path $RepoRoot 'dist'
-$Version = Get-Date -Format 'yyyyMMdd'
+
+if (-not $Version) {
+    # Default to the single source of truth in AppInfo.fs (let Version = "x.y.z").
+    $appInfo = Join-Path $RepoRoot 'Eu4Indexer.Core/AppInfo.fs'
+    $m = Select-String -Path $appInfo -Pattern 'Version\s*=\s*"([^"]+)"' | Select-Object -First 1
+    if ($m) { $Version = $m.Matches[0].Groups[1].Value } else { $Version = Get-Date -Format 'yyyyMMdd' }
+}
 
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 $builtUnixOnWindows = $false
