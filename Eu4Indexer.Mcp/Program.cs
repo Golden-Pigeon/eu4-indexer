@@ -1,7 +1,15 @@
+using Eu4Indexer.Core;
 using Eu4Indexer.Mcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+// `version` / `--version`: print and exit before touching the database or stdio.
+if (args.Contains("version") || args.Contains("--version"))
+{
+    Console.WriteLine($"eu4indexer-mcp {AppInfo.Version}");
+    return 0;
+}
 
 // Resolve the database path: --db <path> wins, else the EU4_DB environment variable.
 string? dbPath = null;
