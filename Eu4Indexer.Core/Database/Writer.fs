@@ -21,10 +21,19 @@ type IIndexWriter =
     abstract InsertSymbol: Symbol -> unit
     abstract InsertConfigType: ConfigTypeInfo -> unit
     abstract InsertPayload: EntityPayload * bool -> unit
+    abstract UpdateEntityEffective: int64 * bool -> unit
     abstract InsertEntityOverride: EntityOverride -> unit
     abstract InsertLocRow: LocRow * bool -> unit
     abstract InsertReference: ReferenceRow -> unit
     abstract InsertLocOverride: LocOverride -> unit
+    /// All event-option clause node ids, grouped by entity. Small; read once to
+    /// classify reference contexts during DB-driven reference extraction.
+    abstract ReadOptionNodeIds: unit -> Map<int64, Set<int64>>
+    /// Stream every entity's script nodes back from the DB (in node-id order, so
+    /// grouped per entity and in flatten order), invoking the handler once per
+    /// entity with (entityId, entityType, nodes). Lets references be derived
+    /// without holding all script nodes in memory.
+    abstract IterEntityNodesForRefs: (int64 -> string -> RefNode list -> unit) -> unit
     abstract Finalize: (string * string) list * bool -> int
 
 /// Single-writer bulk loader over an open ADO.NET connection. Inserts with
@@ -323,6 +332,72 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
               opt r.OptionNodeId
               boolInt r.Negated ]
 
+    member _.UpdateEntityEffective(entityId: int64, isEffective: bool) =
+        bind
+            (prepared "UPDATE entities SET is_effective = $1 WHERE entity_id = $2" 2)
+            [ boolInt isEffective; box entityId ]
+
+    member _.ReadOptionNodeIds() : Map<int64, Set<int64>> =
+        use cmd = connection.CreateCommand()
+        cmd.CommandText <- "SELECT entity_id, node_id FROM event_options"
+        use r = cmd.ExecuteReader()
+        let mutable acc = Map.empty
+
+        while r.Read() do
+            let eid = Convert.ToInt64(r.GetValue 0)
+            let nid = Convert.ToInt64(r.GetValue 1)
+            let cur = Map.tryFind eid acc |> Option.defaultValue Set.empty
+            acc <- Map.add eid (Set.add nid cur) acc
+
+        acc
+
+    member _.IterEntityNodesForRefs(handle: int64 -> string -> RefNode list -> unit) : unit =
+        use cmd = connection.CreateCommand()
+
+        // node_id is the PK and assigned in flatten order within an entity, and
+        // entities are processed in id order, so ordering by node_id yields each
+        // entity's nodes contiguously and in flatten order — exactly the order
+        // the in-memory extractor saw them.
+        cmd.CommandText <-
+            "SELECT n.entity_id, e.entity_type, n.node_id, n.parent_id, n.depth, \
+                    n.node_kind, n.context, n.key, n.value \
+             FROM script_nodes n JOIN entities e ON e.entity_id = n.entity_id \
+             ORDER BY n.node_id"
+
+        use r = cmd.ExecuteReader()
+        let optStr (i: int) = if r.IsDBNull i then None else Some(r.GetString i)
+        let optI64 (i: int) = if r.IsDBNull i then None else Some(Convert.ToInt64(r.GetValue i))
+
+        let mutable curEntity = -1L
+        let mutable curType = ""
+        let mutable acc: RefNode list = []
+
+        let flush () =
+            if curEntity >= 0L then
+                handle curEntity curType (List.rev acc)
+
+        while r.Read() do
+            let eid = Convert.ToInt64(r.GetValue 0)
+
+            if eid <> curEntity then
+                flush ()
+                curEntity <- eid
+                curType <- r.GetString 1
+                acc <- []
+
+            let node =
+                { NodeId = Convert.ToInt64(r.GetValue 2)
+                  ParentId = optI64 3
+                  Depth = Convert.ToInt32(r.GetValue 4)
+                  NodeKind = r.GetString 5
+                  Context = r.GetString 6
+                  Key = optStr 7
+                  Value = optStr 8 }
+
+            acc <- node :: acc
+
+        flush ()
+
     member _.InsertLocOverride(ov: LocOverride) =
         bind
             (prepared (autoSql "loc_overrides" "$1,$2,$3,$4,$5,$6,$7,$8") 8)
@@ -369,10 +444,13 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
         member this.InsertSymbol symbol = this.InsertSymbol symbol
         member this.InsertConfigType t = this.InsertConfigType t
         member this.InsertPayload(payload, isEffective) = this.InsertPayload(payload, isEffective)
+        member this.UpdateEntityEffective(entityId, isEffective) = this.UpdateEntityEffective(entityId, isEffective)
         member this.InsertEntityOverride ov = this.InsertEntityOverride ov
         member this.InsertLocRow(row, isEffective) = this.InsertLocRow(row, isEffective)
         member this.InsertReference r = this.InsertReference r
         member this.InsertLocOverride ov = this.InsertLocOverride ov
+        member this.ReadOptionNodeIds() = this.ReadOptionNodeIds()
+        member this.IterEntityNodesForRefs handle = this.IterEntityNodesForRefs handle
         member this.Finalize(meta, withFts) = this.Finalize(meta, withFts)
 
     interface IDisposable with
