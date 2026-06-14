@@ -199,8 +199,13 @@ module Pipeline =
 
         log (sprintf "Localisation entries: %d" locRows.Length)
 
-        // Write to the database.
-        log (sprintf "Writing database: %s" request.DbPath)
+        // Write to the database. Avoid logging a Postgres connection string (it
+        // may carry a password); just name the backend.
+        if Writer.isPostgresTarget request.DbPath then
+            log "Writing database: postgres"
+        else
+            log (sprintf "Writing database: %s" request.DbPath)
+
         use writer = Writer.create request.DbPath
 
         writer.InTransaction(fun () ->

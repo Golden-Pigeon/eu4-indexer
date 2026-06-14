@@ -25,6 +25,7 @@
     <Compile Include="Localisation.fs" />
     <Compile Include="Database/Schema.fs" />
     <Compile Include="Database/Dialect.fs" />
+    <Compile Include="Database/PostgresSchema.fs" />
     <Compile Include="Database/Writer.fs" />
     <Compile Include="Pipeline.fs" />
   </ItemGroup>
@@ -32,6 +33,7 @@
   <ItemGroup>
     <ProjectReference Include="../external/cwtools/CWTools/CWTools.fsproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Npgsql" Version="9.0.2" />
   </ItemGroup>
 
 </Project>

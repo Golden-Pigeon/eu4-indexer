@@ -36,7 +36,10 @@ type IndexArgs =
             | Mod _ -> "mod directory or .mod descriptor; repeatable, order = load order"
             | Auto_Mods -> "auto-discover enabled mods from the launcher / mod dir"
             | Config_Dir _ -> "cwtools config repo dir (default: $EU4_CONFIG_DIR)"
-            | Db _ -> "output SQLite database path (overwritten)"
+            | Db _ ->
+                "output target (overwritten): a SQLite file path, or a PostgreSQL "
+                + "connection string ('Host=...;Database=...;Username=...;Password=...' "
+                + "or postgres://user:pass@host/db)"
             | Languages _ -> "comma-separated localisation languages (default: all)"
             | Skip_Generic -> "index only events/missions/decisions/modifiers"
             | No_Fts -> "skip building full-text search tables"

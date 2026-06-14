@@ -66,6 +66,32 @@ dotnet run -c Release --project Eu4Indexer.Cli -- index \
 Later mods override earlier mods, and any mod overrides the base game. Override
 relationships are recorded explicitly — see below.
 
+### Export target (SQLite or PostgreSQL)
+
+`--db` accepts either a **SQLite file path** (the default) or a **PostgreSQL
+connection string**, auto-detected:
+
+```bash
+# SQLite (default)
+dotnet run -c Release --project Eu4Indexer.Cli -- index … --db eu4.db
+
+# PostgreSQL — keyword form or a postgres:// URI
+dotnet run -c Release --project Eu4Indexer.Cli -- index … \
+    --db "Host=localhost;Database=eu4;Username=eu4;Password=secret"
+dotnet run -c Release --project Eu4Indexer.Cli -- index … \
+    --db "postgres://eu4:secret@localhost/eu4"
+```
+
+The Postgres export carries the same tables, override graph, and `refs` causal
+graph. Full-text search is provided by `pg_trgm` GIN indexes over `value_plain`
+and `raw_text` (the substring/CJK analogue of the SQLite trigram FTS), so
+`value_plain ILIKE '%幻梦之森%'` stays fast. Existing eu4-indexer tables in the
+target database are dropped and rebuilt; other objects are left untouched. The
+role needs `CREATE EXTENSION pg_trgm` privilege (skip search with `--no-fts`).
+
+The bundled MCP server (`Eu4Indexer.Mcp`) reads SQLite only; the Postgres export
+is for your own SQL / BI / `pgvector` use.
+
 ## Schema highlights
 
 - `sources` — base game + mods, with `load_order` and descriptor metadata.
@@ -229,6 +255,9 @@ precedence). `.env` is git-ignored.
 cp .env.example .env   # then edit the paths
 dotnet test
 ```
+
+Setting `EU4_PG_CONN` to a PostgreSQL connection string additionally enables the
+Postgres export test, which indexes into both backends and asserts they match.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
 
