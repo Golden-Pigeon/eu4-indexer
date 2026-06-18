@@ -30,6 +30,16 @@ module Setup =
     let private archiveUrl (cfg: GameConfig) =
         sprintf "https://github.com/%s/archive/%s.zip" cfg.Repo cfg.Ref
 
+    /// Recursive copy. Used instead of Directory.Move because the temp dir and the
+    /// install dir can be on different volumes (e.g. C: vs the work drive on
+    /// Windows CI), where Move fails with "must have identical roots".
+    let rec private copyDir (src: string) (dst: string) =
+        Directory.CreateDirectory dst |> ignore
+        for file in Directory.GetFiles src do
+            File.Copy(file, Path.Combine(dst, Path.GetFileName file), true)
+        for dir in Directory.GetDirectories src do
+            copyDir dir (Path.Combine(dst, Path.GetFileName dir))
+
     /// Download the config zip, extract it, and place its contents at
     /// ~/.eu4indexer/config/<game> (replacing any previous copy). Returns the
     /// destination directory, or an error message.
@@ -69,7 +79,7 @@ module Setup =
 
                 AppPaths.ensureDir (Directory.GetParent(dest).FullName) |> ignore
                 if Directory.Exists dest then Directory.Delete(dest, true)
-                Directory.Move(inner, dest)
+                copyDir inner dest
 
                 log (sprintf "Installed %s config to %s" gameId (AppPaths.normalize dest))
                 Ok dest
