@@ -1,0 +1,83 @@
+name: smoke
+
+# Builds the self-contained binary, installs it via the release install script
+# (local/offline mode, so no published release is needed), and drives the whole
+# user flow — setup, index, serve — on all three platforms. Indexing runs against
+# the repo's synthetic example fixture, never real game files (no copyright risk).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Single install root for the whole job, so install/setup/index/serve all
+      # share one registry and config.
+      EU4INDEXER_HOME: ${{ github.workspace }}/.eu4home
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build, install, and smoke-test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -s)" in Darwin) os=osx;; Linux) os=linux;; esac
+          case "$(uname -m)" in arm64|aarch64) arch=arm64;; *) arch=x64;; esac
+          RID="$os-$arch"
+          VER="$(grep -oE 'Version[[:space:]]*=[[:space:]]*"[^"]+"' Eu4Indexer.Core/AppInfo.fs | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          echo "RID=$RID VER=$VER"
+
+          ./scripts/build-binaries.sh "$RID"
+          EU4INDEXER_DIST="dist/eu4indexer-$VER-$RID.tar.gz" sh ./install.sh
+          EXE="$EU4INDEXER_HOME/bin/eu4indexer"
+
+          "$EXE" version
+          "$EXE" setup
+          "$EXE" index --game-dir Eu4Indexer.Tests/fixtures/example-game --name vanilla
+          "$EXE" index --game-dir Eu4Indexer.Tests/fixtures/example-game --mod Eu4Indexer.Tests/fixtures/example-mod --name withmod
+          "$EXE" list
+          python3 scripts/mcp-smoke.py "$EXE" vanilla
+
+      - name: In-process fixture tests (Linux only)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          EU4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/eu4
+        run: dotnet test -c Release --filter "FullyQualifiedName~FixtureIndexTests"
+
+      - name: Build, install, and smoke-test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $arch = if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { 'arm64' } else { 'x64' }
+          $RID = "win-$arch"
+          $ver = (Select-String -Path Eu4Indexer.Core/AppInfo.fs -Pattern 'Version\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          Write-Host "RID=$RID VER=$ver"
+
+          ./scripts/build-binaries.ps1 $RID
+          & ./install.ps1 -Dist "dist/eu4indexer-$ver-$RID.zip" -Location $env:EU4INDEXER_HOME
+          $exe = Join-Path $env:EU4INDEXER_HOME 'bin/eu4indexer.exe'
+
+          & $exe version
+          & $exe setup
+          & $exe index --game-dir Eu4Indexer.Tests/fixtures/example-game --name vanilla
+          & $exe index --game-dir Eu4Indexer.Tests/fixtures/example-game --mod Eu4Indexer.Tests/fixtures/example-mod --name withmod
+          & $exe list
+          python scripts/mcp-smoke.py $exe vanilla

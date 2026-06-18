@@ -192,6 +192,14 @@ public sealed record SchemaInfo(
     List<NameCount> OverrideLevels,
     List<string> Languages);
 
+/// <summary>One registered index, for list_databases.</summary>
+public sealed record DatabaseInfo(
+    string Name,
+    string Game,
+    int Sources,
+    string IndexedAt,
+    bool IsActive);
+
 /// <summary>read_query result: column names and rows (as column-keyed maps).</summary>
 public sealed record QueryResult(
     List<string> Columns,

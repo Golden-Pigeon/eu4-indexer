@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Cross-publish self-contained binaries (CLI + MCP server) for every supported
-# OS/arch target and archive each one. .NET cross-publishes from any host, so
+# Cross-publish the self-contained eu4indexer binary (a single merged CLI that
+# also hosts the MCP server via `serve`) for every supported OS/arch target and
+# archive each one with the bundled skill. .NET cross-publishes from any host, so
 # this produces all targets regardless of the machine it runs on.
+#
+# Each archive contains:
+#   bin/       the self-contained eu4indexer app (no .NET install needed)
+#   skills/    the eu4-indexer agent skill (copied to agents by `install`)
 #
 # For macOS/Linux. On Windows use scripts/build-binaries.ps1 (this script also
 # works under Git Bash / WSL if `dotnet`, `tar`, and `zip` are on PATH).
@@ -12,17 +17,14 @@
 # Usage:
 #   ./scripts/build-binaries.sh                          # all six targets
 #   ./scripts/build-binaries.sh linux-x64 osx-arm64      # only the listed RIDs
-#   ./scripts/build-binaries.sh --version 0.1.0          # override version label
+#   ./scripts/build-binaries.sh --version 0.2.0          # override version label
 
 set -euo pipefail
 
 ALL_RIDS=(win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64)
 
-# Components published per target, as "archive-name:project-file" pairs.
-COMPONENTS=(
-  "cli:Eu4Indexer.Cli/Eu4Indexer.Cli.fsproj"
-  "mcp:Eu4Indexer.Mcp/Eu4Indexer.Mcp.csproj"
-)
+# The merged CLI is the only published app; it bundles the MCP server library.
+CLI_PROJECT="Eu4Indexer.Cli/Eu4Indexer.Cli.fsproj"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -63,22 +65,19 @@ for rid in "${RIDS[@]}"; do
   rid_dir="$DIST_DIR/$rid"
   rm -rf "$rid_dir"
 
-  # Each component goes in its own subfolder (cli/, mcp/) of the per-RID dir, so
-  # the two self-contained apps never overwrite each other's shared dlls.
-  for comp in "${COMPONENTS[@]}"; do
-    name="${comp%%:*}"
-    project="$REPO_ROOT/${comp#*:}"
-    echo "==> publishing $name for $rid"
+  echo "==> publishing eu4indexer for $rid"
 
-    # Self-contained (bundles the .NET runtime so no install is needed on the
-    # target). Not single-file and not trimmed: F#/CWTools rely on reflection,
-    # which trimming can break. The per-RID native SQLite library is restored
-    # automatically by SQLitePCLRaw.
-    dotnet publish "$project" -c Release -r "$rid" --self-contained true \
-      -p:PublishSingleFile=false -p:PublishTrimmed=false -o "$rid_dir/$name"
-  done
+  # Self-contained (bundles the .NET runtime so no install is needed on the
+  # target). Not single-file and not trimmed: F#/CWTools rely on reflection,
+  # which trimming can break. The per-RID native SQLite library is restored
+  # automatically by SQLitePCLRaw.
+  dotnet publish "$REPO_ROOT/$CLI_PROJECT" -c Release -r "$rid" --self-contained true \
+    -p:PublishSingleFile=false -p:PublishTrimmed=false -o "$rid_dir/bin"
 
-  # One archive per target, containing both cli/ and mcp/.
+  # Bundle the agent skill alongside the binary so `eu4indexer install` can copy it.
+  cp -R "$REPO_ROOT/skills" "$rid_dir/skills"
+
+  # One archive per target, containing bin/ and skills/.
   base="eu4indexer-$VERSION-$rid"
   if [[ "$rid" == win-* ]]; then
     archive="$DIST_DIR/$base.zip"

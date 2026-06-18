@@ -7,10 +7,9 @@
         "-c",
         "Release",
         "--project",
-        "Eu4Indexer.Mcp",
+        "Eu4Indexer.Cli",
         "--",
-        "--db",
-        "${EU4_DB}"
+        "serve"
       ]
     }
   }
