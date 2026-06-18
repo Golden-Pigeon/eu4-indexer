@@ -1,7 +1,10 @@
 #!/usr/bin/env pwsh
-# Cross-publish self-contained binaries (CLI + MCP server) for every supported
-# OS/arch target and archive each one. .NET cross-publishes from any host, so
+# Cross-publish the self-contained eu4indexer binary (a single merged CLI that
+# also hosts the MCP server via `serve`) for every supported OS/arch target and
+# archive each one with the bundled skill. .NET cross-publishes from any host, so
 # this produces all targets regardless of the machine it runs on.
+#
+# Each archive contains bin/ (the self-contained app) and skills/ (the agent skill).
 #
 # Runs on Windows (Windows PowerShell 5.1 or PowerShell 7+) and, since it is
 # plain pwsh, on macOS/Linux too. The bash equivalent is build-binaries.sh.
@@ -29,11 +32,8 @@ Set-StrictMode -Version Latest
 $AllRids = @('win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 if (-not $Rids -or $Rids.Count -eq 0) { $Rids = $AllRids }
 
-# Components published per target: archive name -> project file.
-$Components = [ordered]@{
-    cli = 'Eu4Indexer.Cli/Eu4Indexer.Cli.fsproj'
-    mcp = 'Eu4Indexer.Mcp/Eu4Indexer.Mcp.csproj'
-}
+# The merged CLI is the only published app; it bundles the MCP server library.
+$CliProject = 'Eu4Indexer.Cli/Eu4Indexer.Cli.fsproj'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DistDir = Join-Path $RepoRoot 'dist'
@@ -56,23 +56,20 @@ foreach ($rid in $Rids) {
     $ridDir = Join-Path $DistDir $rid
     if (Test-Path $ridDir) { Remove-Item -Recurse -Force $ridDir }
 
-    # Each component goes in its own subfolder (cli/, mcp/) of the per-RID dir,
-    # so the two self-contained apps never overwrite each other's shared dlls.
-    foreach ($name in $Components.Keys) {
-        $project = Join-Path $RepoRoot $Components[$name]
-        $outDir = Join-Path $ridDir $name
-        Write-Host "==> publishing $name for $rid" -ForegroundColor Cyan
+    Write-Host "==> publishing eu4indexer for $rid" -ForegroundColor Cyan
 
-        # Self-contained (bundles the .NET runtime so no install is needed on the
-        # target). Not single-file and not trimmed: F#/CWTools rely on reflection,
-        # which trimming can break. The per-RID native SQLite library is restored
-        # automatically by SQLitePCLRaw.
-        dotnet publish $project -c Release -r $rid --self-contained true `
-            -p:PublishSingleFile=false -p:PublishTrimmed=false -o $outDir
-        if ($LASTEXITCODE -ne 0) { throw "publish failed for $name/$rid" }
-    }
+    # Self-contained (bundles the .NET runtime so no install is needed on the
+    # target). Not single-file and not trimmed: F#/CWTools rely on reflection,
+    # which trimming can break. The per-RID native SQLite library is restored
+    # automatically by SQLitePCLRaw.
+    dotnet publish (Join-Path $RepoRoot $CliProject) -c Release -r $rid --self-contained true `
+        -p:PublishSingleFile=false -p:PublishTrimmed=false -o (Join-Path $ridDir 'bin')
+    if ($LASTEXITCODE -ne 0) { throw "publish failed for $rid" }
 
-    # One archive per target, containing both cli/ and mcp/.
+    # Bundle the agent skill alongside the binary so `eu4indexer install` can copy it.
+    Copy-Item -Recurse -Force (Join-Path $RepoRoot 'skills') (Join-Path $ridDir 'skills')
+
+    # One archive per target, containing bin/ and skills/.
     $base = "eu4indexer-$Version-$rid"
     if ($rid -like 'win-*') {
         $archive = Join-Path $DistDir "$base.zip"
@@ -93,5 +90,5 @@ foreach ($rid in $Rids) {
 Write-Host "Done. Archives in $DistDir" -ForegroundColor Green
 if ($builtUnixOnWindows) {
     Write-Warning ("Linux/macOS archives were built on Windows, which has no Unix " +
-        "executable bit; recipients run 'chmod +x Eu4Indexer.Cli' (or Eu4Indexer.Mcp) once after extracting.")
+        "executable bit; the install script runs 'chmod +x bin/eu4indexer' after extracting.")
 }

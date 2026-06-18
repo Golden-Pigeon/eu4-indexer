@@ -22,6 +22,17 @@ the server (see "Setup" at the end) instead of guessing from training data.
 **Call `describe_schema` once at the start** of a session to see which
 `entity_type` and `ref_kind` values exist, the languages present, and the DDL.
 
+## Choosing a database (multiple indexes)
+
+An installation can hold several indexes — e.g. vanilla, or a specific mod set or
+playset. The server starts on the active one, which is usually all you need.
+
+- If the user's question **names a particular mod or playset**, call
+  `list_databases` first; if a different index matches that name, switch with
+  `select_database` before querying. The selection persists for the session.
+- With a single registered database (or when the active one already fits), ignore
+  these tools and query directly.
+
 ## How EU4 content connects (mental model)
 
 - **Events** are keyed `namespace.id`. They fire one of three ways: `triggered_only`

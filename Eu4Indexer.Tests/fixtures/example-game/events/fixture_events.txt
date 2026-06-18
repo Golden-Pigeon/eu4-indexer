@@ -1,0 +1,39 @@
+# Synthetic EU4-format events authored for eu4-indexer's own tests.
+# No Paradox Interactive content. Safe to redistribute.
+
+namespace = fixture
+
+country_event = {
+	id = fixture.1
+	title = fixture.1.t
+	desc = fixture.1.d
+	picture = GENERIC_eventPicture
+	is_triggered_only = yes
+
+	option = {
+		name = fixture.1.a
+		set_country_flag = fixture_started
+		country_event = { id = fixture.2 }
+	}
+}
+
+country_event = {
+	id = fixture.2
+	title = fixture.2.t
+	desc = fixture.2.d
+	picture = GENERIC_eventPicture
+
+	trigger = {
+		has_country_flag = fixture_started
+	}
+
+	mean_time_to_happen = {
+		days = 30
+	}
+
+	option = {
+		name = fixture.2.a
+		add_stability = 1
+		set_country_flag = fixture_done
+	}
+}

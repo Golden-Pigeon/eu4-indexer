@@ -1,0 +1,33 @@
+# Synthetic EU4-format mission tree. No Paradox content.
+
+fixture_missions = {
+	slot = 1
+	generic = yes
+	ai = yes
+
+	fixture_mission_1 = {
+		icon = mission_generic
+		required_missions = { }
+
+		trigger = {
+			has_country_flag = fixture_done
+		}
+
+		effect = {
+			add_prestige = 10
+		}
+	}
+
+	fixture_mission_2 = {
+		icon = mission_generic
+		required_missions = { fixture_mission_1 }
+
+		trigger = {
+			has_country_flag = fixture_resolved
+		}
+
+		effect = {
+			add_treasury = 100
+		}
+	}
+}

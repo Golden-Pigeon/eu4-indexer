@@ -17,6 +17,28 @@ public static class TestPaths
 
     public static string? ExampleModDir => Resolve("EU4_EXAMPLE_MOD_DIR");
 
+    /// The synthetic, copyright-safe example game/mod shipped in the repo, used
+    /// by the fixture integration tests and CI (no real game files needed).
+    public static string? FixtureGameDir => FixtureDir("example-game");
+
+    public static string? FixtureModDir => FixtureDir("example-mod");
+
+    private static string? FixtureDir(string name)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            foreach (var candidate in new[]
+                     {
+                         Path.Combine(dir.FullName, "fixtures", name),
+                         Path.Combine(dir.FullName, "Eu4Indexer.Tests", "fixtures", name),
+                     })
+                if (Directory.Exists(candidate))
+                    return candidate;
+        }
+
+        return null;
+    }
+
     /// PostgreSQL connection string for the export integration test. Unlike the
     /// directory paths, this is a raw value (no filesystem check).
     public static string? PostgresConn => ResolveRaw("EU4_PG_CONN");

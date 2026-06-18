@@ -242,11 +242,12 @@ WHERE n.context = 'trigger' AND (n.value = 'FRA' OR (n.key = 'tag' AND n.value =
 
 ## Querying with an agent (MCP)
 
-`Eu4Indexer.Mcp` is a read-only [MCP](https://modelcontextprotocol.io) server
+`eu4indexer serve` runs a read-only [MCP](https://modelcontextprotocol.io) server
 that exposes the index to an AI agent as typed tools, so the correct joins
 (effective-only, the causal graph, localisation) are built in rather than left
-to ad-hoc SQL. It takes the database path from `--db` or the `EU4_DB`
-environment variable and refuses a schema-version mismatch on startup.
+to ad-hoc SQL. It serves the **active** index from the registry (or `--db` /
+`EU4_DB`) and refuses a schema-version mismatch on startup. When several indexes
+are registered, the agent can switch between them mid-session.
 
 Tools so far: `explain_entity` (an entity's conditions, options, and what it
 references / is referenced by); `what_triggers` and `what_does_it_do` (reverse
@@ -258,6 +259,7 @@ checked but never set, events fired but undefined — candidate bugs);
 `search_everything` (cross-type search when the content type is unknown);
 `resolve_symbol` (explain a trigger/effect, or expand a scripted definition);
 `list_sources` and `get_overrides` (load order and who-overrode-what);
+`list_databases` and `select_database` (pick which registered index to query);
 `describe_schema` (the DDL and a data dictionary — call it first); and
 `read_query` (a guarded read-only SELECT escape hatch).
 
@@ -265,75 +267,59 @@ checked but never set, events fired but undefined — candidate bugs);
 EU4 causal model and three workflows (explain an entity, explain a phenomenon /
 find a bug, and plan how to reach a goal) for combining these tools.
 
-### Install as a Claude Code plugin
+### Install (recommended)
 
-This repo is also a Claude Code plugin (`.claude-plugin/plugin.json` + `.mcp.json`
-+ the skill). **Install it from a local clone, not directly from a remote URL.**
-The bundled MCP config currently launches the local `Eu4Indexer.Mcp` project by
-relative path, so Claude Code must be started from this repository directory for
-the MCP server to resolve that path correctly.
+A script installs the self-contained `eu4indexer` binary (no .NET install needed)
+plus the bundled skill into `~/.eu4indexer` and puts it on your PATH. Then a few
+commands set everything up so the agent works **from any directory**.
 
-1. Clone the repository locally, with submodules:
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/Golden-Pigeon/eu4-indexer/main/install.sh | sh
+```
 
-   ```bash
-   git clone --recursive https://github.com/Golden-Pigeon/eu4-indexer.git
-   cd eu4-indexer
-   ```
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/Golden-Pigeon/eu4-indexer/main/install.ps1 | iex
+```
 
-2. Build an index database from your local EU4 installation and any mods you want
-   the agent to inspect:
+Then:
 
-   ```bash
-   dotnet run -c Release --project Eu4Indexer.Cli -- index \
-       --game-dir /path/to/eu4 \
-       --mod /path/to/mod \
-       --config-dir /path/to/cwtools-eu4-config \
-       --db /absolute/path/to/eu4.db
-   ```
+```bash
+eu4indexer setup                 # download the cwtools config rules (per game)
+eu4indexer index                 # build an index from your local EU4 install
+                                 # (auto-detects the game; add --mod / --playset / etc.)
+eu4indexer install               # register the MCP server + skill with Claude Code & Codex
+```
 
-3. Set the required environment variable before starting Claude Code:
+- The index defaults to `~/.eu4indexer/db/<game>/<name>.db` and is recorded in a
+  registry; `eu4indexer list` shows them and `eu4indexer use <name>` sets the
+  active one. Pass `--name` to build several (e.g. `vanilla`, a playset).
+- `eu4indexer install` writes a **user-scoped** MCP server pointing at the
+  installed binary by absolute path and copies the skill to `~/.claude/skills`,
+  so no plugin and no per-directory setup are needed. Choose agents with
+  `--agents claude,codex`.
+- The install location is configurable: `--location DIR` or `EU4INDEXER_HOME`.
+- macOS: the binary is unsigned, so the installer clears the Gatekeeper
+  quarantine attribute. Windows: it clears the Mark-of-the-Web.
 
-   ```bash
-   export EU4_DB=/absolute/path/to/eu4.db
-   ```
-
-   `EU4_DB` must point to the database you built. If it is missing or points to a
-   stale database, the MCP server will not be able to answer EU4 content queries.
-
-4. Install the plugin from the local checkout:
-
-   ```bash
-   claude plugin install /absolute/path/to/eu4-indexer
-   ```
-
-5. Start Claude Code from this repository directory so the relative MCP project
-   path in `.mcp.json` resolves correctly:
-
-   ```bash
-   cd /absolute/path/to/eu4-indexer
-   claude
-   ```
-
-6. Reload plugins in Claude Code:
-
-   ```text
-   /reload-plugins
-   ```
-
-After installation, use the bundled `/eu4-indexer:eu4-indexer` skill for EU4
-content questions. The plugin starts the MCP server using `.mcp.json` from this
-repository directory and reads the index path from `${EU4_DB}`.
+After `eu4indexer install`, start your agent anywhere and ask EU4 content
+questions; the bundled skill drives the `eu4` tools.
 
 ### Manual registration
 
-Register it with an MCP client, e.g. Claude Code / Desktop:
+To register with another MCP client, point it at the installed binary:
 
 ```json
 { "mcpServers": { "eu4": {
-  "command": "dotnet",
-  "args": ["run", "--project", "/abs/path/Eu4Indexer.Mcp", "--", "--db", "/abs/path/eu4.db"]
+  "command": "/absolute/path/to/.eu4indexer/bin/eu4indexer",
+  "args": ["serve"]
 } } }
 ```
+
+`serve` serves the active index from the registry; add `"--db", "/abs/path.db"`
+to pin a specific one. Building from source instead? Use
+`dotnet run --project Eu4Indexer.Cli -- serve --db /abs/path/eu4.db`.
 
 ## Testing
 
