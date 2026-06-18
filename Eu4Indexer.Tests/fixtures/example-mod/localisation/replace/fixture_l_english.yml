@@ -1,0 +1,3 @@
+l_english:
+ fixture.1.t:0 "The Fixture Begins (Modded)"
+ fixture.1.d:0 "A synthetic event, overridden by the example mod."

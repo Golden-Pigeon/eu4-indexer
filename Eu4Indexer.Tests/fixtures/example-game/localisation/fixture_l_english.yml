@@ -1,0 +1,12 @@
+l_english:
+ fixture.1.t:0 "The Fixture Begins"
+ fixture.1.d:0 "A synthetic event used only to test eu4-indexer."
+ fixture.1.a:0 "Begin the fixture"
+ fixture.2.t:0 "The Fixture Continues"
+ fixture.2.d:0 "The synthetic chain continues."
+ fixture.2.a:0 "Gain stability"
+ fixture_decision_title:0 "Run the Fixture Decision"
+ fixture_decision_desc:0 "A synthetic decision."
+ fixture_mission_1_title:0 "First Fixture Mission"
+ fixture_mission_2_title:0 "Second Fixture Mission"
+ fixture_modifier:0 "Fixture Modifier"

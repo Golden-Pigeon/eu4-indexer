@@ -3,6 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- Ship as `eu4indexer` (eu4indexer.exe on Windows), the name the install
+         scripts and agent registration expect. -->
+    <AssemblyName>eu4indexer</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Eu4Indexer.Core\Eu4Indexer.Core.fsproj" />
+    <ProjectReference Include="..\Eu4Indexer.Mcp\Eu4Indexer.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

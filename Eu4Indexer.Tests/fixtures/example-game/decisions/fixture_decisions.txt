@@ -1,0 +1,22 @@
+# Synthetic EU4-format decision. No Paradox content.
+
+country_decisions = {
+	fixture_decision = {
+		potential = {
+			has_country_flag = fixture_started
+		}
+
+		allow = {
+			stability = 1
+		}
+
+		effect = {
+			set_country_flag = fixture_resolved
+			country_event = { id = fixture.1 }
+		}
+
+		ai_will_do = {
+			factor = 1
+		}
+	}
+}

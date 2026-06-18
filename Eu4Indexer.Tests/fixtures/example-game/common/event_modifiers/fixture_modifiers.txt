@@ -1,0 +1,6 @@
+# Synthetic EU4-format event modifier. No Paradox content.
+
+fixture_modifier = {
+	local_tax_modifier = 0.1
+	local_manpower_modifier = 0.05
+}
