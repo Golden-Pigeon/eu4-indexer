@@ -1,5 +1,5 @@
 ---
-name: eu4-indexer
+name: eu4
 description: >
   Query and reason over a Europa Universalis IV (EU4) script index through the
   `eu4` MCP server: explain events/missions/decisions and their conditions and
@@ -10,6 +10,64 @@ description: >
 ---
 
 # EU4 Indexer
+
+## About Europa Universalis IV
+
+Europa Universalis IV is Paradox Interactive's flagship grand strategy game set in
+1444–1821. The player controls a nation-state across four centuries of history:
+wage war, conduct diplomacy, colonize the New World, manage trade networks, and
+guide a country through the Reformation, the Age of Absolutism, and the
+Revolutionary era.
+
+The game world is built from **script files** that define thousands of interactive
+elements: events, missions, decisions, modifiers, estates, government reforms,
+religions, cultures, trade nodes, province-level data, and more. Every in-game
+occurrence — an event firing, a decision becoming available, a modifier being
+applied — is a script author's design choice that this index makes queryable.
+
+**Mods and alternate settings**: EU4 has a large modding scene. Many mods use
+alternate history, fantasy settings, or wholly different timelines (e.g. Anbennar
+is a fantasy world with magic; Ante Bellum extends the timeline; MEIOU & Taxes
+overhauls core mechanics). When a mod is loaded, its content may completely
+replace or supplement vanilla content. Do NOT assume the vanilla historical
+context applies to a modded game — always query the index to see what is actually
+present.
+
+## Standard terminology
+
+| Term | Abbr. | Meaning |
+|------|-------|---------|
+| Aggressive Expansion | AE | Diplomatic penalty from conquest; high values trigger coalitions |
+| Monarch Power | MP | Admin (ADM), Diplomatic (DIP), and Military (MIL) points |
+| Development | dev | A province's tax/production/manpower values; "devving" = raising them |
+| Core | — | Territorial integration; coring prevents overextension |
+| Personal Union | PU | One monarch ruling two countries; "union partner" = junior |
+| Estate | — | An internal faction (clergy, nobility, burghers, etc.) |
+| Mission Tree | — | A country-specific branching quest chain |
+| Great Project | — | A monument providing passive bonuses (colloquially "wonder") |
+| Overextension | OE | Penalty from holding uncored provinces |
+| Stability | stab | National stability score (−3 to +3) |
+| War Exhaustion | WE | Accumulated war fatigue |
+| Legitimacy | — | Monarch's right to rule (0–100) |
+| Prestige | — | National prestige (−100 to +100) |
+| Manpower | — | Available military-age population for recruiting regiments |
+| Holy Roman Empire | HRE | Central European political entity |
+| Casus Belli | CB | Justification for war |
+| Mean Time to Happen | MTTH | Statistical trigger for timed events |
+
+### English-speaking community conventions
+
+- Countries are often referred to by their **tag** (three-letter code, e.g. `FRA`,
+  `GBR`, `BYZ`) or their in-game adjective form ("the Ottomans," "the French").
+- "Blobbing" = rapid territorial expansion; "tall play" = developing few provinces
+  deeply rather than conquering widely.
+- "Bird mana / paper mana / sword mana" = humorous terms for ADM, DIP, and MIL
+  points (from the monarch point icons).
+- "Coalition" = a defensive alliance formed against a country with high AE.
+- "WC" = World Conquest; "One Faith" / "One Culture" = achievement-driven runs.
+- "Save-scumming" = reloading a save to get a different RNG outcome.
+- "6/6/6 heir goes hunting" = meme about the game's tendency to kill perfect heirs
+  via the hunting accident event.
 
 This skill drives the `eu4` MCP server, which exposes a read-only SQLite index of
 the EU4 base game plus any loaded mods (built by `Eu4Indexer.Cli`). The index has
@@ -57,6 +115,35 @@ playset. The server starts on the active one, which is usually all you need.
 - **Localisation** values contain `§` colour codes and `£` icons; search runs against a
   markup-stripped, CJK-friendly column. Non-Latin mods often hide their text in the
   `l_english` slot.
+- **Game defines**: Numerical constants that control game mechanics are stored in
+  `common/defines.lua` and indexed in the `defines` table (query via `v_effective_defines`). These **differ
+  between vanilla and mods** — a mod may change truce length, AE thresholds, idea
+  costs, siege phases, culture conversion time, or missionary strength. **Always
+  query the relevant define before stating a mechanical number.** Key defines:
+
+  | When answering about… | Query this define |
+  |---|---|
+  | Truce duration | `SELECT value FROM v_effective_defines WHERE define_key='NDiplomacy.TRUCE_YEARS'` (default 5 years) |
+  | Coalition expiry | `NDiplomacy.COALITION_YEARS` (default 20 years) |
+  | AE coalition threshold | `NDiplomacy.AE_COALITION_THRESHOLD` (default −50 opinion) |
+  | AE distance/province caps | `NDiplomacy.AE_DISTANCE_BASE`, `NDiplomacy.AE_PROVINCE_CAP`, `NDiplomacy.AE_OTHER_CONTINENT` |
+  | AE same-culture multiplier | `NDiplomacy.AE_SAME_CULTURE` (0.5), `NDiplomacy.AE_SAME_CULTURE_GROUP` (0.25) |
+  | Idea cost (monarch power) | `NCountry.PS_BUY_IDEA` (default 400) |
+  | Tech cost (monarch power) | `NCountry.PS_ADVANCE_TECH` (default 600) |
+  | Boost stability cost | `NCountry.PS_BOOST_STABILITY` (default 100) |
+  | Reduce war exhaustion cost | `NCountry.PS_REDUCE_WAREXHAUSTION` (default 75) |
+  | Reduce inflation cost | `NCountry.PS_REDUCE_INFLATION` (default 75) |
+  | Core province cost | `NCountry.PS_MAKE_PROVINCE_CORE` (default 10 per dev) |
+  | Culture conversion time | `NCountry.MONTHS_TO_CHANGE_CULTURE` (default 10 months per dev) |
+  | Promote mercantilism | `NCountry.PROMOTE_MERCANTILISM_INCREASE` (default 1%), cost `NCountry.PS_PROMOTE_MERCANTILISM` (default 100) |
+  | Siege phase duration | `NMilitary.DAYS_PER_SIEGE_PHASE` (default 30 days) |
+  | Assault cost | `NCountry.PS_ASSAULT` (default 5 MIL) |
+  | Artillery barrage cost | `NCountry.PS_ARTILLERY_BARRAGE` (default 50 MIL) |
+  | Max war exhaustion | `NCountry.MAX_WAR_EXHAUSTION` (default 20) |
+  | Max absolutism effect | Look for `ABSOLUTISM` in defines |
+  | Missionary base time | `NEconomy.MISSIONARY_TIME_BASE` (default 1000) |
+
+  To **discover** a define: `SELECT define_key, value FROM v_effective_defines WHERE define_key LIKE '%KEYWORD%'`
 
 ## Tools
 
