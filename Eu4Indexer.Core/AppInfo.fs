@@ -6,4 +6,4 @@ namespace Eu4Indexer.Core
 module AppInfo =
 
     [<Literal>]
-    let Version = "0.2.0"
+    let Version = "0.3.0"
