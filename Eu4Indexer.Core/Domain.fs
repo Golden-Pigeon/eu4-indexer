@@ -245,11 +245,19 @@ type EntityOverride =
 type EventKind =
     | CountryEvent
     | ProvinceEvent
+    | NewsEvent
+    | StateEvent
+    | UnitLeaderEvent
+    | OperativeLeaderEvent
 
     member this.DbValue =
         match this with
         | CountryEvent -> "country"
         | ProvinceEvent -> "province"
+        | NewsEvent -> "news"
+        | StateEvent -> "state"
+        | UnitLeaderEvent -> "unit_leader"
+        | OperativeLeaderEvent -> "operative_leader"
 
 type EventDetails =
     { EntityId: int64
@@ -285,6 +293,18 @@ type MissionRequirement =
     { EntityId: int64
       RequiredMission: string }
 
+type FocusDetails =
+    { EntityId: int64
+      TreeId: string
+      Icon: string option
+      X: int option
+      Y: int option
+      RelativePositionId: string option }
+
+type FocusRequirement =
+    { EntityId: int64
+      RequiredFocus: string }
+
 type DecisionDetails =
     { EntityId: int64
       Major: bool
@@ -301,29 +321,48 @@ type EntityLocalisation =
       Role: string
       LocKey: string }
 
+/// Per-game structured details. Generic extractors (and ideas) leave this at
+/// GenericGame; EU4 extractors use Eu4Game; HOI4 extractors use Hoi4Game.
+type GameSpecificDetails =
+    | GenericGame
+    | Eu4Game of Eu4Details
+    | Hoi4Game of Hoi4Details
+
+and Eu4Details =
+    { Event: EventDetails option
+      EventOptions: EventOption list
+      Mission: MissionDetails option
+      MissionReqs: MissionRequirement list
+      Decision: DecisionDetails option }
+
+and Hoi4Details =
+    { Event: EventDetails option
+      EventOptions: EventOption list
+      Focus: FocusDetails option
+      FocusReqs: FocusRequirement list
+      Decision: DecisionDetails option }
+
 /// Everything an extractor produces for one entity, ready for the DB writer.
 type EntityPayload =
     { Entity: EntityRecord
       Nodes: ScriptNodeRow list
-      EventDetails: EventDetails option
-      EventOptions: EventOption list
-      MissionDetails: MissionDetails option
-      MissionRequirements: MissionRequirement list
-      DecisionDetails: DecisionDetails option
+      GameDetails: GameSpecificDetails
       ModifierValues: ModifierValue list
       EntityLocs: EntityLocalisation list }
 
 module EntityPayload =
-    let create entity nodes =
+    let private make entity nodes gameDetails =
         { Entity = entity
           Nodes = nodes
-          EventDetails = None
-          EventOptions = []
-          MissionDetails = None
-          MissionRequirements = []
-          DecisionDetails = None
+          GameDetails = gameDetails
           ModifierValues = []
           EntityLocs = [] }
+
+    let generic entity nodes = make entity nodes GenericGame
+
+    let eu4 entity nodes = make entity nodes (Eu4Game { Event = None; EventOptions = []; Mission = None; MissionReqs = []; Decision = None })
+
+    let hoi4 entity nodes = make entity nodes (Hoi4Game { Event = None; EventOptions = []; Focus = None; FocusReqs = []; Decision = None })
 
 // ---------------------------------------------------------------------------
 // Localisation

@@ -25,7 +25,10 @@
     <Compile Include="Extractors/Missions.fs" />
     <Compile Include="Extractors/Decisions.fs" />
     <Compile Include="Extractors/Modifiers.fs" />
+    <Compile Include="Extractors/FocusTrees.fs" />
+    <Compile Include="Extractors/Ideas.fs" />
     <Compile Include="Extractors/Generic.fs" />
+    <Compile Include="Extractors/Defines.fs" />
     <Compile Include="OverrideResolution.fs" />
     <Compile Include="ReferenceExtractor.fs" />
     <Compile Include="Localisation.fs" />

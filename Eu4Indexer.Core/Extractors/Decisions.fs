@@ -39,6 +39,11 @@ module Decisions =
                         Role = "desc"
                         LocKey = key + "_desc" } ]
 
-                { EntityPayload.create entity nodes with
-                    DecisionDetails = Some details
+                let p = EntityPayload.eu4 entity nodes
+                { p with
+                    GameDetails =
+                        Eu4Game
+                            { Event = None; EventOptions = []
+                              Mission = None; MissionReqs = []
+                              Decision = Some details }
                     EntityLocs = locs }))

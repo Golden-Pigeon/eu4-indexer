@@ -31,6 +31,7 @@ type IndexArgs =
     | Skip_Generic
     | No_Fts
     | Verbose
+    | Game of game_id: string
 
     interface IArgParserTemplate with
         member this.Usage =
@@ -50,6 +51,7 @@ type IndexArgs =
             | Skip_Generic -> "index only events/missions/decisions/modifiers"
             | No_Fts -> "skip building full-text search tables"
             | Verbose -> "print per-stage progress"
+            | Game _ -> "game id (default: eu4); supported: eu4, hoi4"
 
 type DetectArgs =
     | [<AltCommandLine("-g")>] Game_Dir of path: string
@@ -57,6 +59,7 @@ type DetectArgs =
     | [<AltCommandLine("-w")>] Workshop_Id of id: string
     | [<AltCommandLine("-p")>] Playset of name_or_id: string
     | Auto_Mods
+    | Game of game_id: string
 
     interface IArgParserTemplate with
         member this.Usage =
@@ -66,22 +69,27 @@ type DetectArgs =
             | Workshop_Id _ -> "Steam Workshop item id to include as a mod; repeatable"
             | Playset _ -> "launcher playset name or id; resolves its enabled mods"
             | Auto_Mods -> "auto-discover enabled mods"
+            | Game _ -> "game id (default: eu4); supported: eu4, hoi4"
 
 type WorkshopArgs =
     | [<MainCommand>] Ids of workshop_id: string list
+    | Game of game_id: string
 
     interface IArgParserTemplate with
         member this.Usage =
             match this with
             | Ids _ -> "workshop ids to show (default: all installed)"
+            | Game _ -> "game id (default: eu4); supported: eu4, hoi4"
 
 type PlaysetArgs =
     | [<MainCommand>] Name of name_or_id: string list
+    | Game of game_id: string
 
     interface IArgParserTemplate with
         member this.Usage =
             match this with
             | Name _ -> "playset name or id to show mods for (default: list all playsets)"
+            | Game _ -> "game id (default: eu4); supported: eu4, hoi4"
 
 type VersionArgs =
     | [<Hidden>] Unused
@@ -101,21 +109,25 @@ type ServeArgs =
 
 type SetupArgs =
     | Ref of ref: string
+    | Game of game_id: string
 
     interface IArgParserTemplate with
         member this.Usage =
             match this with
             | Ref _ -> "override the pinned cwtools config commit/branch to download"
+            | Game _ -> "only download config for this game (default: all known games)"
 
 type InstallArgs =
     | Agents of csv: string
     | Yes
+    | Language of lang: string
 
     interface IArgParserTemplate with
         member this.Usage =
             match this with
             | Agents _ -> "comma-separated agents to register with (default: claude,codex)"
             | Yes -> "assume yes to prompts (non-interactive)"
+            | Language _ -> "skill language (default: en); supported: en, zh"
 
 type UseArgs =
     | [<MainCommand>] Name of name: string
@@ -168,6 +180,14 @@ let private defaultConfigDir (gameId: string) =
         if Directory.Exists installed then Some installed else None
     | dir -> Some dir
 
+let private resolveAdapter (gameIdOpt: string option) =
+    let id = gameIdOpt |> Option.defaultValue "eu4"
+    match GameAdapter.byId id with
+    | Some a -> a
+    | None ->
+        eprintfn "warning: unknown game '%s', falling back to eu4" id
+        GameAdapter.eu4
+
 let private resolveMods
     (probe: Discovery.FsProbe)
     (explicit: string list)
@@ -206,7 +226,7 @@ let private resolveMods
     explicitWarnings @ workshopWarnings @ playsetWarnings @ autoWarnings
 
 let private runDetect (args: ParseResults<DetectArgs>) =
-    let adapter = GameAdapter.eu4
+    let adapter = resolveAdapter (args.TryGetResult DetectArgs.Game)
     let probe = Discovery.realProbe
     let explicitGameDir = args.TryGetResult DetectArgs.Game_Dir
     let explicitMods = args.GetResults DetectArgs.Mod
@@ -240,7 +260,7 @@ let private runDetect (args: ParseResults<DetectArgs>) =
         ExitOk
 
 let private runIndex (args: ParseResults<IndexArgs>) =
-    let adapter = GameAdapter.eu4
+    let adapter = resolveAdapter (args.TryGetResult IndexArgs.Game)
     let probe = Discovery.realProbe
     let verbose = args.Contains Verbose
     let log (msg: string) = if verbose then eprintfn "%s" msg
@@ -251,7 +271,8 @@ let private runIndex (args: ParseResults<IndexArgs>) =
         | None -> ""
 
     if configDir = "" || not (Directory.Exists configDir) then
-        eprintfn "config dir not found; pass --config-dir, set EU4_CONFIG_DIR, or run 'eu4indexer setup'"
+        eprintfn "config dir not found; pass --config-dir, set EU4_CONFIG_DIR, or run 'eu4indexer setup'%s"
+            (if adapter.GameId <> "eu4" then sprintf " --game %s" adapter.GameId else "")
         ExitConfigInvalid
     else
 
@@ -326,7 +347,7 @@ let private runIndex (args: ParseResults<IndexArgs>) =
         if report.ForeignKeyViolations > 0 then 4 else ExitOk
 
 let private runWorkshop (args: ParseResults<WorkshopArgs>) =
-    let adapter = GameAdapter.eu4
+    let adapter = resolveAdapter (args.TryGetResult WorkshopArgs.Game)
     let probe = Discovery.realProbe
     let filter = args.TryGetResult WorkshopArgs.Ids |> Option.defaultValue []
 
@@ -344,7 +365,7 @@ let private runWorkshop (args: ParseResults<WorkshopArgs>) =
         ExitOk
 
 let private runPlayset (args: ParseResults<PlaysetArgs>) =
-    let adapter = GameAdapter.eu4
+    let adapter = resolveAdapter (args.TryGetResult PlaysetArgs.Game)
     let probe = Discovery.realProbe
 
     match Discovery.launcherDbPath adapter probe with
@@ -398,28 +419,58 @@ let private runServe (args: ParseResults<ServeArgs>) =
     | None -> Eu4Indexer.Mcp.McpServer.RunAsync([||]).GetAwaiter().GetResult()
 
 let private runSetup (args: ParseResults<SetupArgs>) =
-    let adapter = GameAdapter.eu4
     let refOverride = args.TryGetResult SetupArgs.Ref
 
-    match Setup.fetchConfig adapter.GameId refOverride (eprintfn "%s") with
-    | Result.Ok _ ->
-        printfn "Config ready. Build an index with 'eu4indexer index'."
-        ExitOk
-    | Result.Error e ->
-        eprintfn "error: %s" e
-        ExitConfigInvalid
+    let fetchOne gameId =
+        Setup.fetchConfig gameId refOverride (eprintfn "%s")
 
-// Locate the bundled skill: next to the binary (packaged layout) or under the
-// current directory (running from a source checkout).
+    match args.TryGetResult SetupArgs.Game with
+    | Some gameId ->
+        match fetchOne gameId with
+        | Result.Ok _ ->
+            printfn "Config ready. Build an index with 'eu4indexer index --game %s'." gameId
+            ExitOk
+        | Result.Error e ->
+            eprintfn "error: %s" e
+            ExitConfigInvalid
+    | None ->
+        let results =
+            GameAdapter.allAdapters
+            |> List.map (fun a ->
+                eprintfn "--- %s ---" a.GameId
+                a.GameId, fetchOne a.GameId)
+
+        let failures = results |> List.choose (fun (g, r) -> match r with Result.Error e -> Some(g, e) | _ -> None)
+        let okCount = results.Length - failures.Length
+
+        for g, e in failures do
+            eprintfn "warning: failed to download config for %s: %s" g e
+
+        if okCount = 0 then
+            eprintfn "error: no configs were downloaded."
+            ExitConfigInvalid
+        else
+            printfn "Configs ready (%d/%d). Build an index with 'eu4indexer index'." okCount results.Length
+            ExitOk
+
+// Locate the bundled skill. Walk up from the binary's own directory looking for
+// skills/eu4-indexer — this finds it in both the packaged layout (skills next to
+// or just above the binary) and a source checkout (running the build apphost,
+// e.g. bin/Debug/net9.0/eu4indexer, walks up to the repo root). Falls back to the
+// current directory.
 let private resolveSkillSrc () =
-    let candidates =
-        [ // Packaged layout: skills alongside the binary or one level up (bin/..).
-          Path.Combine(AppContext.BaseDirectory, "skills", "eu4-indexer")
-          Path.Combine(AppContext.BaseDirectory, "..", "skills", "eu4-indexer")
-          // Source checkout.
-          Path.Combine(Directory.GetCurrentDirectory(), "skills", "eu4-indexer") ]
+    let rec walkUp (dir: DirectoryInfo) =
+        if isNull dir then
+            None
+        else
+            let candidate = Path.Combine(dir.FullName, "skills", "eu4-indexer")
+            if Directory.Exists candidate then Some candidate else walkUp dir.Parent
 
-    candidates |> List.tryFind Directory.Exists |> Option.defaultValue (List.head candidates)
+    walkUp (DirectoryInfo AppContext.BaseDirectory)
+    |> Option.orElse (
+        let cwd = Path.Combine(Directory.GetCurrentDirectory(), "skills", "eu4-indexer")
+        if Directory.Exists cwd then Some cwd else None)
+    |> Option.defaultValue (Path.Combine(AppContext.BaseDirectory, "skills", "eu4-indexer"))
 
 let private runInstall (args: ParseResults<InstallArgs>) =
     let agents =
@@ -427,7 +478,12 @@ let private runInstall (args: ParseResults<InstallArgs>) =
         | Some csv -> csv.Split(',') |> Array.map (fun s -> s.Trim()) |> Array.filter ((<>) "") |> List.ofArray
         | None -> [ "claude"; "codex" ]
 
-    let results = AgentInstall.run agents (resolveSkillSrc ())
+    let lang =
+        match args.TryGetResult InstallArgs.Language with
+        | Some l -> l.Trim().ToLowerInvariant()
+        | None -> "en"
+
+    let results = AgentInstall.run agents (resolveSkillSrc ()) lang
 
     results
     |> List.iter (fun r ->

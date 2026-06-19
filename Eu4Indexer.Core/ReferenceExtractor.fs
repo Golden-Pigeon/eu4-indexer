@@ -13,52 +13,8 @@ module ReferenceExtractor =
     /// (ref_kind, target_type, child field carrying the target name) keyed by
     /// the lowercased script key that produces the reference. Flags are
     /// scope-qualified by target_type so a country-flag check is never linked
-    /// to a global-flag set.
-    let private keyRules: Map<string, string * string * string> =
-        Map.ofList
-            [ // fires_event: direct value or { id = X }
-              "country_event", ("fires_event", "event", "id")
-              "province_event", ("fires_event", "event", "id")
-              "ruler_event", ("fires_event", "event", "id")
-              "trade_node_event", ("fires_event", "event", "id")
-              "siege_event", ("fires_event", "event", "id")
-              // set/clear flags
-              "set_country_flag", ("sets_flag", "country_flag", "flag")
-              "clr_country_flag", ("sets_flag", "country_flag", "flag")
-              "set_global_flag", ("sets_flag", "global_flag", "flag")
-              "clr_global_flag", ("sets_flag", "global_flag", "flag")
-              "set_province_flag", ("sets_flag", "province_flag", "flag")
-              "clr_province_flag", ("sets_flag", "province_flag", "flag")
-              "set_ruler_flag", ("sets_flag", "ruler_flag", "flag")
-              "clr_ruler_flag", ("sets_flag", "ruler_flag", "flag")
-              // check flags
-              "has_country_flag", ("checks_flag", "country_flag", "flag")
-              "has_global_flag", ("checks_flag", "global_flag", "flag")
-              "has_province_flag", ("checks_flag", "province_flag", "flag")
-              "has_ruler_flag", ("checks_flag", "ruler_flag", "flag")
-              // set/change variables
-              "set_variable", ("sets_variable", "variable", "which")
-              "change_variable", ("sets_variable", "variable", "which")
-              "add_to_variable", ("sets_variable", "variable", "which")
-              "subtract_variable", ("sets_variable", "variable", "which")
-              "multiply_variable", ("sets_variable", "variable", "which")
-              "divide_variable", ("sets_variable", "variable", "which")
-              // check variables
-              "check_variable", ("checks_variable", "variable", "which")
-              "has_variable", ("checks_variable", "variable", "which")
-              "is_variable_equal", ("checks_variable", "variable", "which")
-              // apply modifiers
-              "add_country_modifier", ("applies_modifier", "modifier", "name")
-              "add_permanent_province_modifier", ("applies_modifier", "modifier", "name")
-              "add_province_modifier", ("applies_modifier", "modifier", "name")
-              "add_ruler_modifier", ("applies_modifier", "modifier", "name")
-              "add_province_triggered_modifier", ("applies_modifier", "modifier", "name")
-              "add_country_triggered_modifier", ("applies_modifier", "modifier", "name")
-              // check modifiers
-              "has_country_modifier", ("checks_modifier", "modifier", "name")
-              "has_province_modifier", ("checks_modifier", "modifier", "name")
-              "has_ruler_modifier", ("checks_modifier", "modifier", "name") ]
-
+    /// to a global-flag set. Passed in via GameAdapter.RefKeyRules so each game
+    /// supplies its own trigger/effect vocabulary.
     let private unquote (s: string) =
         let t = s.Trim()
 
@@ -90,6 +46,7 @@ module ReferenceExtractor =
     /// and `entityType` come from the `entities` row. `NodeKind`/`Context` on a
     /// RefNode are the raw DB strings.
     let fromEntity
+        (keyRules: Map<string, string * string * string>)
         (scriptedTriggers: Set<string>)
         (scriptedEffects: Set<string>)
         (optionNodeIds: Set<int64>)

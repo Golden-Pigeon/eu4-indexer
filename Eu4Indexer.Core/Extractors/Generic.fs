@@ -116,7 +116,7 @@ module Generic =
 
                 let nodes = ScriptTree.flatten lookups idGen.NextNodeId entity.EntityId parsed.Root
 
-                [ { EntityPayload.create entity nodes with
+                [ { EntityPayload.generic entity nodes with
                       EntityLocs = locsFor typeDef entity.EntityId key } ]
             else
                 candidateNodes typeDef parsed.Root
@@ -132,5 +132,5 @@ module Generic =
 
                     let nodes = ScriptTree.flatten lookups idGen.NextNodeId entity.EntityId node
 
-                    { EntityPayload.create entity nodes with
+                    { EntityPayload.generic entity nodes with
                         EntityLocs = locsFor typeDef entity.EntityId key }))

@@ -19,16 +19,16 @@ module AgentInstall =
 
     let private home () = Environment.GetFolderPath Environment.SpecialFolder.UserProfile
 
-    /// Absolute path to the eu4indexer executable to register. Prefer the
-    /// installed binary; fall back to the currently running process.
+    /// Absolute path to the eu4indexer executable to register. Use the running
+    /// binary's own path so `install` always registers whatever you actually
+    /// ran (a release in place, or a `dotnet build` apphost during development) —
+    /// no copy/publish step needed. Falls back to the canonical install location
+    /// only if the process path is unavailable.
     let exePath () =
         let exeName = if RuntimeInformation.IsOSPlatform OSPlatform.Windows then "eu4indexer.exe" else "eu4indexer"
-        let installed = Path.Combine(AppPaths.binDir (), exeName)
-        if File.Exists installed then installed
-        else
-            match Environment.ProcessPath with
-            | null | "" -> installed
-            | p -> p
+        match Environment.ProcessPath with
+        | null | "" -> Path.Combine(AppPaths.binDir (), exeName)
+        | p -> p
 
     let private backup (path: string) =
         if File.Exists path then File.Copy(path, path + ".bak", true)
@@ -43,9 +43,11 @@ module AgentInstall =
 
     // -- Claude Code -------------------------------------------------------
 
-    /// Write the MCP server into ~/.claude.json (user scope) and copy the skill
-    /// into ~/.claude/skills/eu4-indexer.
-    let installClaude (skillSrc: string) : AgentResult =
+    /// Write the MCP server into ~/.claude.json (user scope) and copy each
+    /// game's skill as a flat user-level skill into ~/.claude/skills/{game}/SKILL.md
+    /// so Claude Code finds them as /eu4 and /hoi4. Source layout is
+    /// skills/eu4-indexer/{game}/{language}/SKILL.md; install flattens language.
+    let installClaude (skillSrc: string) (language: string) : AgentResult =
         try
             let exe = exePath ()
             let claudeJson = Path.Combine(home (), ".claude.json")
@@ -71,12 +73,22 @@ module AgentInstall =
             backup claudeJson
             File.WriteAllText(claudeJson, root.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
 
-            // User-level skill so it is available in any directory.
+            // Flat user-level skills: each game → ~/.claude/skills/{game}/SKILL.md.
             let mutable skillMsg = ""
             if Directory.Exists skillSrc then
-                let skillDest = Path.Combine(home (), ".claude", "skills", "eu4-indexer")
-                copyDir skillSrc skillDest
-                skillMsg <- sprintf "; skill -> %s" (AppPaths.normalize skillDest)
+                let skillsHome = Path.Combine(home (), ".claude", "skills")
+                let mutable copied = false
+                for gameDir in Directory.GetDirectories skillSrc do
+                    let langDir = Path.Combine(gameDir, language)
+                    if Directory.Exists langDir then
+                        let gameName = Path.GetFileName gameDir
+                        let dest = Path.Combine(skillsHome, gameName)
+                        copyDir langDir dest
+                        copied <- true
+                if copied then
+                    skillMsg <- sprintf "; skill (%s) -> %s" language (AppPaths.normalize skillsHome)
+                else
+                    skillMsg <- sprintf "; skill source for '%s' not found under %s, skipped" language skillSrc
             else
                 skillMsg <- sprintf "; skill source not found (%s), skipped" skillSrc
 
@@ -137,10 +149,10 @@ module AgentInstall =
             { Agent = "codex"; Ok = false; Message = ex.Message }
 
     /// Install the requested agents (by name). Unknown names yield a failed result.
-    let run (agents: string list) (skillSrc: string) : AgentResult list =
+    let run (agents: string list) (skillSrc: string) (language: string) : AgentResult list =
         agents
         |> List.map (fun a ->
             match a.Trim().ToLowerInvariant() with
-            | "claude" -> installClaude skillSrc
+            | "claude" -> installClaude skillSrc language
             | "codex" -> installCodex ()
             | other -> { Agent = other; Ok = false; Message = "unknown agent (expected: claude, codex)" })

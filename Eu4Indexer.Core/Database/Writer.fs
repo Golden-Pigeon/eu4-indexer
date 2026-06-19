@@ -23,6 +23,7 @@ type IIndexWriter =
     abstract InsertPayload: EntityPayload * bool -> unit
     abstract UpdateEntityEffective: int64 * bool -> unit
     abstract InsertEntityOverride: EntityOverride -> unit
+    abstract InsertDefine: string * string * int -> unit
     abstract InsertLocRow: LocRow * bool -> unit
     abstract InsertReference: ReferenceRow -> unit
     abstract InsertLocOverride: LocOverride -> unit
@@ -235,54 +236,74 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
                   opt n.SymbolId
                   box n.Line ]
 
-        match payload.EventDetails with
-        | Some d ->
-            bind
-                (prepared "INSERT INTO event_details VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)" 12)
-                [ box d.EntityId
-                  box d.Namespace
-                  box d.EventKind.DbValue
-                  opt d.TitleKey
-                  opt d.DescKey
-                  opt d.Picture
-                  boolInt d.IsTriggeredOnly
-                  boolInt d.Hidden
-                  boolInt d.FireOnlyOnce
-                  boolInt d.Major
-                  boolInt d.HasMtth
-                  box d.OptionCount ]
-        | None -> ()
+        match payload.GameDetails with
+        | GenericGame -> ()
+        | Eu4Game d ->
+            match d.Event with
+            | Some ev ->
+                bind
+                    (prepared "INSERT INTO event_details VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)" 12)
+                    [ box ev.EntityId; box ev.Namespace; box ev.EventKind.DbValue
+                      opt ev.TitleKey; opt ev.DescKey; opt ev.Picture
+                      boolInt ev.IsTriggeredOnly; boolInt ev.Hidden
+                      boolInt ev.FireOnlyOnce; boolInt ev.Major
+                      boolInt ev.HasMtth; box ev.OptionCount ]
+            | None -> ()
 
-        for o in payload.EventOptions do
-            bind
-                (prepared (autoSql "event_options" "$1,$2,$3,$4") 4)
-                [ box o.EntityId; box o.OptionIdx; opt o.NameKey; box o.NodeId ]
+            for o in d.EventOptions do
+                bind (prepared (autoSql "event_options" "$1,$2,$3,$4") 4)
+                    [ box o.EntityId; box o.OptionIdx; opt o.NameKey; box o.NodeId ]
 
-        match payload.MissionDetails with
-        | Some d ->
-            bind
-                (prepared "INSERT INTO mission_details VALUES ($1,$2,$3,$4,$5,$6,$7,$8)" 8)
-                [ box d.EntityId
-                  box d.SeriesKey
-                  opt d.Slot
-                  boolInt d.IsGeneric
-                  boolInt d.Ai
-                  opt d.Icon
-                  opt d.Position
-                  boolInt d.HasHighlight ]
-        | None -> ()
+            match d.Mission with
+            | Some m ->
+                bind
+                    (prepared "INSERT INTO mission_details VALUES ($1,$2,$3,$4,$5,$6,$7,$8)" 8)
+                    [ box m.EntityId; box m.SeriesKey; opt m.Slot
+                      boolInt m.IsGeneric; boolInt m.Ai; opt m.Icon; opt m.Position; boolInt m.HasHighlight ]
+            | None -> ()
 
-        for r in payload.MissionRequirements do
-            bind
-                (prepared "INSERT INTO mission_requirements VALUES ($1,$2)" 2)
-                [ box r.EntityId; box r.RequiredMission ]
+            for r in d.MissionReqs do
+                bind (prepared "INSERT INTO mission_requirements VALUES ($1,$2)" 2)
+                    [ box r.EntityId; box r.RequiredMission ]
 
-        match payload.DecisionDetails with
-        | Some d ->
-            bind
-                (prepared "INSERT INTO decision_details VALUES ($1,$2,$3)" 3)
-                [ box d.EntityId; boolInt d.Major; opt d.AiImportance ]
-        | None -> ()
+            match d.Decision with
+            | Some dec ->
+                bind (prepared "INSERT INTO decision_details VALUES ($1,$2,$3)" 3)
+                    [ box dec.EntityId; boolInt dec.Major; opt dec.AiImportance ]
+            | None -> ()
+
+        | Hoi4Game d ->
+            match d.Event with
+            | Some ev ->
+                bind
+                    (prepared "INSERT INTO event_details VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)" 12)
+                    [ box ev.EntityId; box ev.Namespace; box ev.EventKind.DbValue
+                      opt ev.TitleKey; opt ev.DescKey; opt ev.Picture
+                      boolInt ev.IsTriggeredOnly; boolInt ev.Hidden
+                      boolInt ev.FireOnlyOnce; boolInt ev.Major
+                      boolInt ev.HasMtth; box ev.OptionCount ]
+            | None -> ()
+
+            for o in d.EventOptions do
+                bind (prepared (autoSql "event_options" "$1,$2,$3,$4") 4)
+                    [ box o.EntityId; box o.OptionIdx; opt o.NameKey; box o.NodeId ]
+
+            match d.Focus with
+            | Some f ->
+                bind
+                    (prepared "INSERT INTO focus_details VALUES ($1,$2,$3,$4,$5,$6)" 6)
+                    [ box f.EntityId; box f.TreeId; opt f.Icon; opt f.X; opt f.Y; opt f.RelativePositionId ]
+            | None -> ()
+
+            for r in d.FocusReqs do
+                bind (prepared "INSERT INTO focus_requirements VALUES ($1,$2)" 2)
+                    [ box r.EntityId; box r.RequiredFocus ]
+
+            match d.Decision with
+            | Some dec ->
+                bind (prepared "INSERT INTO decision_details VALUES ($1,$2,$3)" 3)
+                    [ box dec.EntityId; boolInt dec.Major; opt dec.AiImportance ]
+            | None -> ()
 
         for mv in payload.ModifierValues do
             bind
@@ -305,6 +326,13 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
               opt ov.WinnerSourceId
               box ov.LoserSourceId
               boolInt ov.IdenticalContent ]
+
+    member _.InsertDefine(key: string, value: string, sourceId: int) =
+        bind
+            (prepared "INSERT INTO defines VALUES ($1,$2,$3)" 3)
+            [ box key
+              box value
+              box sourceId ]
 
     member _.InsertLocRow(row: LocRow, isEffective: bool) =
         bind
@@ -446,6 +474,7 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
         member this.InsertPayload(payload, isEffective) = this.InsertPayload(payload, isEffective)
         member this.UpdateEntityEffective(entityId, isEffective) = this.UpdateEntityEffective(entityId, isEffective)
         member this.InsertEntityOverride ov = this.InsertEntityOverride ov
+        member this.InsertDefine(key, value, sourceId) = this.InsertDefine(key, value, sourceId)
         member this.InsertLocRow(row, isEffective) = this.InsertLocRow(row, isEffective)
         member this.InsertReference r = this.InsertReference r
         member this.InsertLocOverride ov = this.InsertLocOverride ov
@@ -473,11 +502,11 @@ module Writer =
             if IO.File.Exists p then IO.File.Delete p
 
     /// Fresh SQLite file database.
-    let createSqlite (dbPath: string) : IIndexWriter =
+    let createSqlite (gameId: string) (dbPath: string) : IIndexWriter =
         deleteSqliteFiles dbPath
         let conn = new SqliteConnection(sprintf "Data Source=%s" dbPath)
         conn.Open()
-        new RelationalWriter(conn, Dialect.sqlite) :> IIndexWriter
+        new RelationalWriter(conn, Dialect.sqliteFor gameId) :> IIndexWriter
 
     /// Convert a libpq URI (postgres://user:pass@host:port/db) to a keyword
     /// connection string, since Npgsql expects the keyword form.
@@ -505,7 +534,7 @@ module Writer =
 
     /// PostgreSQL target; accepts either a keyword connection string or a
     /// postgres:// URI. Existing eu4-indexer tables are dropped and rebuilt.
-    let createPostgres (target: string) : IIndexWriter =
+    let createPostgres (gameId: string) (target: string) : IIndexWriter =
         let lower = target.ToLowerInvariant()
 
         let connString =
@@ -522,7 +551,7 @@ module Writer =
         // type from the target column on every insert, which is always correct.
         let conn = new NpgsqlConnection(connString)
         conn.Open()
-        new RelationalWriter(conn, PostgresSchema.dialect) :> IIndexWriter
+        new RelationalWriter(conn, PostgresSchema.dialectFor gameId) :> IIndexWriter
 
     /// True when the target string denotes a PostgreSQL database rather than a
     /// SQLite file path.
@@ -535,8 +564,8 @@ module Writer =
     /// Pick the backend from the target string: a postgres:// URI or a keyword
     /// connection string (containing host=) goes to PostgreSQL; anything else is
     /// treated as a SQLite file path.
-    let create (target: string) : IIndexWriter =
+    let create (gameId: string) (target: string) : IIndexWriter =
         if isPostgresTarget target then
-            createPostgres target
+            createPostgres gameId target
         else
-            createSqlite target
+            createSqlite gameId target

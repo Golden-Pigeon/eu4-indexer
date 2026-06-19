@@ -2,13 +2,14 @@ namespace Eu4Indexer.Core.Database
 
 /// SQLite DDL. Tables are created up front with only PK/UNIQUE constraints;
 /// secondary indexes, FTS population and views are applied after bulk load
-/// (see finalizeSql).
+/// (see finalizeSql). Each game gets its own detail tables (EU4: mission_*,
+/// HOI4: focus_*) but shares the core infrastructure tables.
 module Schema =
 
     [<Literal>]
-    let UserVersion = 2
+    let UserVersion = 3
 
-    let tablesSql =
+    let private sharedTables =
         """
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
@@ -138,53 +139,6 @@ CREATE TABLE script_nodes (
     line       INTEGER NOT NULL
 );
 
-CREATE TABLE event_details (
-    entity_id         INTEGER PRIMARY KEY REFERENCES entities(entity_id),
-    namespace         TEXT NOT NULL,
-    event_kind        TEXT NOT NULL CHECK (event_kind IN ('country','province')),
-    title_key         TEXT,
-    desc_key          TEXT,
-    picture           TEXT,
-    is_triggered_only INTEGER NOT NULL DEFAULT 0,
-    hidden            INTEGER NOT NULL DEFAULT 0,
-    fire_only_once    INTEGER NOT NULL DEFAULT 0,
-    major             INTEGER NOT NULL DEFAULT 0,
-    has_mtth          INTEGER NOT NULL DEFAULT 0,
-    option_count      INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE event_options (
-    option_id  INTEGER PRIMARY KEY,
-    entity_id  INTEGER NOT NULL REFERENCES entities(entity_id),
-    option_idx INTEGER NOT NULL,
-    name_key   TEXT,
-    node_id    INTEGER NOT NULL REFERENCES script_nodes(node_id),
-    UNIQUE (entity_id, option_idx)
-);
-
-CREATE TABLE mission_details (
-    entity_id     INTEGER PRIMARY KEY REFERENCES entities(entity_id),
-    series_key    TEXT NOT NULL,
-    slot          INTEGER,
-    is_generic    INTEGER NOT NULL DEFAULT 0,
-    ai            INTEGER NOT NULL DEFAULT 1,
-    icon          TEXT,
-    position      INTEGER,
-    has_highlight INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE mission_requirements (
-    entity_id        INTEGER NOT NULL REFERENCES entities(entity_id),
-    required_mission TEXT NOT NULL,
-    PRIMARY KEY (entity_id, required_mission)
-) WITHOUT ROWID;
-
-CREATE TABLE decision_details (
-    entity_id     INTEGER PRIMARY KEY REFERENCES entities(entity_id),
-    major         INTEGER NOT NULL DEFAULT 0,
-    ai_importance REAL
-);
-
 CREATE TABLE modifier_values (
     entity_id    INTEGER NOT NULL REFERENCES entities(entity_id),
     modifier_key TEXT NOT NULL,
@@ -198,6 +152,13 @@ CREATE TABLE entity_localisation (
     role      TEXT NOT NULL,
     loc_key   TEXT NOT NULL,
     PRIMARY KEY (entity_id, role)
+) WITHOUT ROWID;
+
+CREATE TABLE defines (
+    define_key  TEXT NOT NULL,
+    value       TEXT NOT NULL,
+    source_id   INTEGER NOT NULL REFERENCES sources(source_id),
+    PRIMARY KEY (define_key, source_id)
 ) WITHOUT ROWID;
 
 CREATE TABLE localisation (
@@ -250,7 +211,113 @@ CREATE TABLE refs (
 );
 """
 
-    let indexesSql =
+    let private eu4DetailTables =
+        """
+CREATE TABLE event_details (
+    entity_id         INTEGER PRIMARY KEY REFERENCES entities(entity_id),
+    namespace         TEXT NOT NULL,
+    event_kind        TEXT NOT NULL CHECK (event_kind IN ('country','province')),
+    title_key         TEXT,
+    desc_key          TEXT,
+    picture           TEXT,
+    is_triggered_only INTEGER NOT NULL DEFAULT 0,
+    hidden            INTEGER NOT NULL DEFAULT 0,
+    fire_only_once    INTEGER NOT NULL DEFAULT 0,
+    major             INTEGER NOT NULL DEFAULT 0,
+    has_mtth          INTEGER NOT NULL DEFAULT 0,
+    option_count      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE event_options (
+    option_id  INTEGER PRIMARY KEY,
+    entity_id  INTEGER NOT NULL REFERENCES entities(entity_id),
+    option_idx INTEGER NOT NULL,
+    name_key   TEXT,
+    node_id    INTEGER NOT NULL REFERENCES script_nodes(node_id),
+    UNIQUE (entity_id, option_idx)
+);
+
+CREATE TABLE mission_details (
+    entity_id     INTEGER PRIMARY KEY REFERENCES entities(entity_id),
+    series_key    TEXT NOT NULL,
+    slot          INTEGER,
+    is_generic    INTEGER NOT NULL DEFAULT 0,
+    ai            INTEGER NOT NULL DEFAULT 1,
+    icon          TEXT,
+    position      INTEGER,
+    has_highlight INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE mission_requirements (
+    entity_id        INTEGER NOT NULL REFERENCES entities(entity_id),
+    required_mission TEXT NOT NULL,
+    PRIMARY KEY (entity_id, required_mission)
+) WITHOUT ROWID;
+
+CREATE TABLE decision_details (
+    entity_id     INTEGER PRIMARY KEY REFERENCES entities(entity_id),
+    major         INTEGER NOT NULL DEFAULT 0,
+    ai_importance REAL
+);
+"""
+
+    let private hoi4DetailTables =
+        """
+CREATE TABLE event_details (
+    entity_id         INTEGER PRIMARY KEY REFERENCES entities(entity_id),
+    namespace         TEXT NOT NULL,
+    event_kind        TEXT NOT NULL CHECK (event_kind IN ('country','news','state','unit_leader','operative_leader')),
+    title_key         TEXT,
+    desc_key          TEXT,
+    picture           TEXT,
+    is_triggered_only INTEGER NOT NULL DEFAULT 0,
+    hidden            INTEGER NOT NULL DEFAULT 0,
+    fire_only_once    INTEGER NOT NULL DEFAULT 0,
+    major             INTEGER NOT NULL DEFAULT 0,
+    has_mtth          INTEGER NOT NULL DEFAULT 0,
+    option_count      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE event_options (
+    option_id  INTEGER PRIMARY KEY,
+    entity_id  INTEGER NOT NULL REFERENCES entities(entity_id),
+    option_idx INTEGER NOT NULL,
+    name_key   TEXT,
+    node_id    INTEGER NOT NULL REFERENCES script_nodes(node_id),
+    UNIQUE (entity_id, option_idx)
+);
+
+CREATE TABLE focus_details (
+    entity_id            INTEGER PRIMARY KEY REFERENCES entities(entity_id),
+    tree_id              TEXT NOT NULL,
+    icon                 TEXT,
+    x                    INTEGER,
+    y                    INTEGER,
+    relative_position_id TEXT
+);
+
+CREATE TABLE focus_requirements (
+    entity_id      INTEGER NOT NULL REFERENCES entities(entity_id),
+    required_focus TEXT NOT NULL,
+    PRIMARY KEY (entity_id, required_focus)
+) WITHOUT ROWID;
+
+CREATE TABLE decision_details (
+    entity_id     INTEGER PRIMARY KEY REFERENCES entities(entity_id),
+    major         INTEGER NOT NULL DEFAULT 0,
+    ai_importance REAL
+);
+"""
+
+    let tablesSql (gameId: string) =
+        let details =
+            match gameId with
+            | "eu4" -> eu4DetailTables
+            | "hoi4" -> hoi4DetailTables
+            | _ -> eu4DetailTables
+        sharedTables + details
+
+    let private sharedIndexes =
         """
 CREATE INDEX idx_files_relpath ON files(relative_path);
 CREATE INDEX idx_files_folder  ON files(folder) WHERE is_effective = 1;
@@ -272,8 +339,6 @@ CREATE INDEX idx_sn_key_value ON script_nodes(key, value);
 CREATE INDEX idx_sn_symbol    ON script_nodes(symbol_id) WHERE symbol_id IS NOT NULL;
 CREATE INDEX idx_sn_value     ON script_nodes(value) WHERE value IS NOT NULL;
 CREATE INDEX idx_evd_namespace ON event_details(namespace);
-CREATE INDEX idx_msd_series ON mission_details(series_key);
-CREATE INDEX idx_msr_required ON mission_requirements(required_mission);
 CREATE INDEX idx_mv_key ON modifier_values(modifier_key);
 CREATE INDEX idx_eloc_key ON entity_localisation(loc_key);
 CREATE INDEX idx_loc_key_lang ON localisation(loc_key, language);
@@ -284,6 +349,26 @@ CREATE INDEX idx_refs_target ON refs(target_type, target_key);
 CREATE INDEX idx_refs_kind   ON refs(ref_kind);
 CREATE INDEX idx_refs_from   ON refs(from_entity_id);
 """
+
+    let private eu4DetailIndexes =
+        """
+CREATE INDEX idx_msd_series ON mission_details(series_key);
+CREATE INDEX idx_msr_required ON mission_requirements(required_mission);
+"""
+
+    let private hoi4DetailIndexes =
+        """
+CREATE INDEX idx_fcd_tree ON focus_details(tree_id);
+CREATE INDEX idx_fcr_required ON focus_requirements(required_focus);
+"""
+
+    let indexesSql (gameId: string) =
+        let details =
+            match gameId with
+            | "eu4" -> eu4DetailIndexes
+            | "hoi4" -> hoi4DetailIndexes
+            | _ -> eu4DetailIndexes
+        sharedIndexes + details
 
     let ftsSql =
         """
@@ -304,6 +389,14 @@ INSERT INTO entity_fts(rowid, raw_text) SELECT entity_id, raw_text FROM entities
 
     let viewsSql =
         """
+CREATE VIEW v_effective_defines AS
+    SELECT d.define_key, d.value, d.source_id, s.name AS source_name
+    FROM defines d
+    JOIN sources s USING (source_id)
+    WHERE d.source_id = (
+        SELECT MAX(d2.source_id) FROM defines d2 WHERE d2.define_key = d.define_key
+    );
+
 CREATE VIEW v_effective_entities AS
     SELECT e.*, s.name AS source_name, f.relative_path
     FROM entities e

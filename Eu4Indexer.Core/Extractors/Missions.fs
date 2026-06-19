@@ -33,7 +33,13 @@ module Missions =
             let seriesNodes =
                 ScriptTree.flatten lookups idGen.NextNodeId seriesEntity.EntityId seriesNode
 
-            let seriesPayload = EntityPayload.create seriesEntity seriesNodes
+            let seriesPayload =
+                let p = EntityPayload.eu4 seriesEntity seriesNodes
+                { p with
+                    GameDetails =
+                        Eu4Game
+                            { Event = None; EventOptions = []
+                              Mission = None; MissionReqs = []; Decision = None } }
 
             let missionPayloads =
                 seriesNode.Children
@@ -76,9 +82,13 @@ module Missions =
                             Role = "desc"
                             LocKey = missionKey + "_desc" } ]
 
-                    { EntityPayload.create entity nodes with
-                        MissionDetails = Some details
-                        MissionRequirements = requirements
+                    let p = EntityPayload.eu4 entity nodes
+                    { p with
+                        GameDetails =
+                            Eu4Game
+                                { Event = None; EventOptions = []
+                                  Mission = Some details
+                                  MissionReqs = requirements; Decision = None }
                         EntityLocs = locs })
 
             seriesPayload :: missionPayloads)
