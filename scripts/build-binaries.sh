@@ -80,7 +80,8 @@ for rid in "${RIDS[@]}"; do
   # One archive per target, containing bin/ and skills/.
   base="eu4indexer-$VERSION-$rid"
   if [[ "$rid" == win-* ]]; then
-    archive="$DIST_DIR/$base.zip"
+    ext="zip"
+    archive="$DIST_DIR/$base.$ext"
     rm -f "$archive"
     if ! command -v zip >/dev/null 2>&1; then
       echo "error: 'zip' is required to package Windows targets; install it (e.g. apt install zip / brew install zip)" >&2
@@ -88,12 +89,22 @@ for rid in "${RIDS[@]}"; do
     fi
     ( cd "$rid_dir" && zip -qr "$archive" . )
   else
-    archive="$DIST_DIR/$base.tar.gz"
+    ext="tar.gz"
+    archive="$DIST_DIR/$base.$ext"
     rm -f "$archive"
     # publish on a Unix host already marked the apphosts executable; tar keeps it.
     tar -czf "$archive" -C "$rid_dir" .
   fi
+
+  # Also publish a version-less copy so the installer's default
+  # 'releases/latest/download/eu4indexer-<rid>.<ext>' redirect resolves without
+  # the script knowing the version. The versioned name stays for pinned installs
+  # (--version) and human-readable release listings.
+  latest="$DIST_DIR/eu4indexer-$rid.$ext"
+  rm -f "$latest"
+  cp "$archive" "$latest"
   echo "    -> $archive"
+  echo "    -> $latest"
 done
 
 echo "Done. Archives in $DIST_DIR"

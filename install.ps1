@@ -8,7 +8,7 @@
 #
 # Options (env or params):
 #   $env:EU4INDEXER_HOME / -Location DIR    install dir (default: ~\.eu4indexer)
-#   $env:EU4INDEXER_VERSION / -Version V    release tag (default: v0.2.0)
+#   $env:EU4INDEXER_VERSION / -Version V    release tag to pin (default: latest)
 #   $env:EU4INDEXER_DIST / -Dist PATH       install from a local archive or dir
 [CmdletBinding()]
 param(
@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $Repo = 'Golden-Pigeon/eu4-indexer'
-if (-not $Version) { $Version = 'v0.2.0' }
+# $Version stays empty when not pinned, meaning "install the latest release".
 if (-not $Location) { $Location = Join-Path $HOME '.eu4indexer' }
 
 $arch = $env:PROCESSOR_ARCHITECTURE
@@ -44,9 +44,17 @@ try {
         }
     }
     else {
-        $verNoV = $Version.TrimStart('v')
-        $url = "https://github.com/$Repo/releases/download/$Version/eu4indexer-$verNoV-$Rid.zip"
-        Write-Host "Downloading eu4indexer $Version ($Rid)"
+        if ($Version) {
+            # Pinned release: the asset name carries the version (eu4indexer-<ver>-<rid>).
+            $verNoV = $Version.TrimStart('v')
+            $url = "https://github.com/$Repo/releases/download/$Version/eu4indexer-$verNoV-$Rid.zip"
+            Write-Host "Downloading eu4indexer $Version ($Rid)"
+        }
+        else {
+            # Default: GitHub's latest-release redirect to the version-less asset.
+            $url = "https://github.com/$Repo/releases/latest/download/eu4indexer-$Rid.zip"
+            Write-Host "Downloading eu4indexer latest ($Rid)"
+        }
         Write-Host "  $url"
         $zip = Join-Path $tmp 'eu4indexer.zip'
         Invoke-WebRequest -Uri $url -OutFile $zip
