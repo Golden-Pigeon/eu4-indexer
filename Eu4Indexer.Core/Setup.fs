@@ -25,7 +25,13 @@ module Setup =
             Some
                 { Repo = "cwtools/cwtools-eu4-config"
                   Ref = "a85622d368bbb7afca938ed70fdd5eda44aec769" }
+        | "hoi4" ->
+            Some
+                { Repo = "cwtools/cwtools-hoi4-config"
+                  Ref = "f1460d139036e75a8dd065dbd27b27415172654f" }
         | _ -> None
+
+    let allGameIds = [ "eu4"; "hoi4" ]
 
     let private archiveUrl (cfg: GameConfig) =
         sprintf "https://github.com/%s/archive/%s.zip" cfg.Repo cfg.Ref

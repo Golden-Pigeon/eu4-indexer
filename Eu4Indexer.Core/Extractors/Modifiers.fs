@@ -50,6 +50,5 @@ module Modifiers =
                     Role = "name"
                     LocKey = key } ]
 
-            { EntityPayload.create entity nodes with
-                ModifierValues = modifierValues
-                EntityLocs = locs })
+            let p = EntityPayload.eu4 entity nodes
+            { p with ModifierValues = modifierValues; EntityLocs = locs })

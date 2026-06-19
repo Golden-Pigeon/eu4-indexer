@@ -103,7 +103,12 @@ module Events =
                             LocKey = k }
                       | None -> () ]
 
-            { EntityPayload.create entity nodes with
-                EventDetails = Some details
-                EventOptions = options
+            let payload = EntityPayload.eu4 entity nodes
+
+            { payload with
+                GameDetails =
+                    Eu4Game
+                        { Event = Some details
+                          EventOptions = options
+                          Mission = None; MissionReqs = []; Decision = None }
                 EntityLocs = locs })

@@ -20,12 +20,12 @@ DROP TABLE IF EXISTS
     meta, sources, source_tags, source_dependencies, source_replace_paths,
     files, parse_errors, file_overrides, symbols, config_types,
     entities, entity_overrides, script_nodes, event_details, event_options,
-    mission_details, mission_requirements, decision_details, modifier_values,
+    mission_details, mission_requirements, focus_details, focus_requirements, decision_details, modifier_values,
     entity_localisation, localisation, loc_overrides, refs
 CASCADE;
 """
 
-    let tablesSql =
+    let tablesSql (gameId: string) =
         """
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
@@ -158,7 +158,7 @@ CREATE TABLE script_nodes (
 CREATE TABLE event_details (
     entity_id         INTEGER PRIMARY KEY REFERENCES entities(entity_id) DEFERRABLE INITIALLY DEFERRED,
     namespace         TEXT NOT NULL,
-    event_kind        TEXT NOT NULL CHECK (event_kind IN ('country','province')),
+    event_kind        TEXT NOT NULL CHECK (event_kind IN ('country','province','news','state','unit_leader','operative_leader')),
     title_key         TEXT,
     desc_key          TEXT,
     picture           TEXT,
@@ -196,6 +196,21 @@ CREATE TABLE mission_requirements (
     PRIMARY KEY (entity_id, required_mission)
 );
 
+
+CREATE TABLE focus_details (
+    entity_id            INTEGER PRIMARY KEY REFERENCES entities(entity_id) DEFERRABLE INITIALLY DEFERRED,
+    tree_id              TEXT NOT NULL,
+    icon                 TEXT,
+    x                    INTEGER,
+    y                    INTEGER,
+    relative_position_id TEXT
+);
+
+CREATE TABLE focus_requirements (
+    entity_id      INTEGER NOT NULL REFERENCES entities(entity_id) DEFERRABLE INITIALLY DEFERRED,
+    required_focus TEXT NOT NULL,
+    PRIMARY KEY (entity_id, required_focus)
+);
 CREATE TABLE decision_details (
     entity_id     INTEGER PRIMARY KEY REFERENCES entities(entity_id) DEFERRABLE INITIALLY DEFERRED,
     major         INTEGER NOT NULL DEFAULT 0,
@@ -263,12 +278,15 @@ CREATE TABLE refs (
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX idx_loc_value_trgm  ON localisation USING gin (value_plain gin_trgm_ops);
 CREATE INDEX idx_entity_raw_trgm ON entities    USING gin (raw_text    gin_trgm_ops);
+
+CREATE INDEX idx_fcd_tree ON focus_details(tree_id);
+CREATE INDEX idx_fcr_required ON focus_requirements(required_focus);
 """
 
-    let dialect: Dialect =
+    let dialectFor (gameId: string) : Dialect =
         { Name = "postgres"
-          TablesSql = dropSql + tablesSql
-          IndexesSql = Schema.indexesSql
+          TablesSql = dropSql + tablesSql gameId
+          IndexesSql = Schema.indexesSql gameId
           SearchSql = searchSql
           ViewsSql = Schema.viewsSql
           SetupSql = [ "SET synchronous_commit TO off" ]

@@ -129,7 +129,7 @@ module Pipeline =
         else
             log (sprintf "Writing database: %s" request.DbPath)
 
-        use writer = Writer.create request.DbPath
+        use writer = Writer.create adapter.GameId request.DbPath
 
         // Phase A: static rows (sources/files/file overrides/symbols/config
         // types). Available immediately and the FK targets for everything later.
@@ -182,6 +182,8 @@ module Pipeline =
                         | Some StaticModifiersFolder -> Modifiers.extract "static_modifier" lookups idGen file parsed
                         | Some TriggeredModifiersFolder ->
                             Modifiers.extract "triggered_modifier" lookups idGen file parsed
+                        | Some FocusTreesFolder -> FocusTrees.extract lookups idGen file parsed
+                        | Some IdeasFolder -> Ideas.extract lookups idGen file parsed
                         | None ->
                             if request.SkipGeneric then
                                 []
@@ -217,6 +219,69 @@ module Pipeline =
         let effectiveCount =
             entityRes.Effectiveness |> Map.toSeq |> Seq.filter snd |> Seq.length
 
+        // Phase B3: Game defines (.lua files). These use LUA syntax, not
+        // Paradox script, so they are parsed separately. Each key/value pair
+        // becomes an entity (entity_type="define") so the agent can query
+        // constants like NFocus.FOCUS_POINT_DAYS or NCountry.CORE_TIME_SIZE.
+        // Two layout conventions exist:
+        //   EU4:  common/defines.lua (single file, flat categories)
+        //   HOI4: common/defines/*.lua (one or more files in a directory)
+        let definesEntities =
+            let candidates =
+                sources
+                |> List.collect (fun source ->
+                    [ // EU4 convention: common/defines.lua
+                      let p = Path.Combine(source.RootPath, "common/defines.lua")
+                      if File.Exists p then
+                          let relPath =
+                              Path.GetRelativePath(source.RootPath, p)
+                                  .Replace('\\', '/')
+                                  .ToLowerInvariant()
+
+                          [ source, p, relPath ]
+                      else
+                          []
+                      // HOI4 convention: common/defines/*.lua
+                      let dir = Path.Combine(source.RootPath, "common/defines")
+
+                      if Directory.Exists dir then
+                          Directory.EnumerateFiles(dir, "*.lua", SearchOption.AllDirectories)
+                          |> Seq.map (fun absPath ->
+                              let relPath =
+                                  Path.GetRelativePath(source.RootPath, absPath)
+                                      .Replace('\\', '/')
+                                      .ToLowerInvariant()
+
+                              source, absPath, relPath)
+                          |> List.ofSeq
+                      else
+                          [] ]
+                    |> List.concat)
+
+            // File-level shadowing: same relative path → highest load order wins.
+            candidates
+            |> List.groupBy (fun (_, _, relPath) -> relPath)
+            |> List.collect (fun (_, group) ->
+                let winnerSource, winnerPath, _ =
+                    group |> List.maxBy (fun (s, _, _) -> s.LoadOrder)
+
+                Defines.parse winnerPath
+                |> List.map (fun (key, value) -> winnerSource, key, value))
+            // Key-level shadowing: same key → highest load order wins.
+            |> List.groupBy (fun (_, key, _) -> key)
+            |> List.map (fun (_, group) ->
+                group |> List.maxBy (fun (s, _, _) -> s.LoadOrder))
+
+        let mutable definesCount = 0
+
+        writer.InTransaction(fun () ->
+            for source, key, value in definesEntities do
+                writer.InsertDefine(key, value, source.SourceId)
+                definesCount <- definesCount + 1)
+
+        if definesCount > 0 then
+            log (sprintf "Defines: %d" definesCount)
+
         // Phase C: derive the reference / causal graph by reading the just-written
         // script nodes back from the DB one entity at a time, instead of holding
         // every entity's nodes in memory. The references themselves are small
@@ -232,6 +297,7 @@ module Pipeline =
 
             for r in
                 ReferenceExtractor.fromEntity
+                    adapter.RefKeyRules
                     scriptedTriggerSet
                     scriptedEffectSet
                     optionNodeIds
@@ -257,7 +323,7 @@ module Pipeline =
         let locRows =
             locFiles
             |> List.collect (fun file ->
-                match GameAdapter.locFileLanguage languages file.FileName with
+                match adapter.LocFileLanguage file.RelativePath with
                 | None -> []
                 | Some lang ->
                     match Localisation.parseFile nextLocId file lang with

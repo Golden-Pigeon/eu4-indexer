@@ -53,10 +53,10 @@ module Dialect =
         count
 
     /// SQLite backend: matches the original single-file writer behaviour exactly.
-    let sqlite =
+    let sqliteFor (gameId: string) =
         { Name = "sqlite"
-          TablesSql = Schema.tablesSql
-          IndexesSql = Schema.indexesSql
+          TablesSql = Schema.tablesSql gameId
+          IndexesSql = Schema.indexesSql gameId
           SearchSql = Schema.ftsSql
           ViewsSql = Schema.viewsSql
           SetupSql =

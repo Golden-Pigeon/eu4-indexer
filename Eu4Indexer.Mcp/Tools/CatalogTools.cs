@@ -104,7 +104,7 @@ public static class CatalogTools
             db.Query(sql, r => new NameCount(r.GetString(0), r.GetInt64(1)));
 
         return new SchemaInfo(
-            Schema.tablesSql + "\n" + Schema.viewsSql,
+            Schema.tablesSql(db.GameId) + "\n" + Schema.viewsSql,
             counts("SELECT entity_type, count(*) FROM entities WHERE is_effective = 1 GROUP BY 1 ORDER BY 2 DESC"),
             counts("SELECT ref_kind, count(*) FROM refs GROUP BY 1 ORDER BY 2 DESC"),
             counts("SELECT kind, count(*) FROM symbols GROUP BY 1 ORDER BY 2 DESC"),

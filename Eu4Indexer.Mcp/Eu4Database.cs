@@ -14,6 +14,9 @@ public sealed class Eu4Database
     private const int CommandTimeoutSeconds = 30;
 
     private readonly string _connectionString;
+    private readonly Lazy<string> _gameId;
+
+    public string GameId => _gameId.Value;
 
     public Eu4Database(string dbPath)
     {
@@ -25,6 +28,19 @@ public sealed class Eu4Database
             DataSource = dbPath,
             Mode = SqliteOpenMode.ReadOnly,
         }.ToString();
+
+        _gameId = new Lazy<string>(() =>
+        {
+            try
+            {
+                return QueryScalar<string>(
+                    "SELECT value FROM meta WHERE key='game_id'");
+            }
+            catch
+            {
+                return "eu4";
+            }
+        });
     }
 
     /// Fail fast if the database was built by a different indexer schema version.
@@ -318,6 +334,8 @@ public sealed class Eu4Database
         "scripted_trigger" => "scripted_trigger",
         "scripted_effect" => "scripted_effect",
         "event_modifier" or "static_modifier" or "triggered_modifier" => "modifier",
+        "focus" => "focus",
+        "focus_tree" => "focus_tree",
         _ => null,
     };
 
