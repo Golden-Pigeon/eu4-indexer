@@ -1,277 +1,65 @@
 # eu4-indexer
 
-Indexes Europa Universalis IV (EU4) game scripts — and any loaded mods — into a
-queryable SQLite database. It parses events, missions, decisions, modifiers and
-every other `common/` script type with [CWTools](https://github.com/cwtools/cwtools),
-records their full condition/effect trees, localisation in all languages, and
-the exact override relationships between the base game and each mod.
+Indexes Paradox grand-strategy game scripts — **Europa Universalis IV** and
+**Hearts of Iron IV**, plus any loaded mods — into a queryable SQLite (or
+PostgreSQL) database. It parses events, missions, decisions, focus trees, ideas,
+modifiers and every other `common/` script type with
+[CWTools](https://github.com/cwtools/cwtools), recording their full
+condition/effect trees, localisation in all languages, and the exact override
+relationships between the base game and each mod. The core is game-agnostic (a
+`GameAdapter` abstraction); EU4 and HOI4 ship today, with room for more.
 
-The design is game-agnostic at its core (a `GameAdapter` abstraction); EU4 is the
-only implementation today, with room to add CK3 / HOI4 / Stellaris / VIC3 later.
+## Contents
 
-## Projects
+- [Architecture](#architecture)
+- [Highlights](#highlights)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+- [Acknowledgements](#acknowledgements)
+
+## Architecture
+
+Four projects plus a bundled agent skill. `Eu4Indexer.Core` does the work
+(discover sources → resolve overrides → parse with CWTools → extract entities →
+build the causal `refs` graph → write the database); `Eu4Indexer.Cli` is the
+command-line front-end; `Eu4Indexer.Mcp` is a read-only MCP server that serves a
+built index to an AI agent as typed tools; and the per-game skill teaches the
+agent how to use them.
 
 | Project | Language | Purpose |
 |---|---|---|
-| `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, SQLite writer |
-| `Eu4Indexer.Cli` | F# (Argu) | `index`, `detect`, `workshop`, and `playset` commands |
+| `Eu4Indexer.Core` | F# | Parsing, extraction, override + reference resolution, SQLite/PostgreSQL writer |
+| `Eu4Indexer.Cli` | F# (Argu) | The `eu4indexer` command-line interface |
+| `Eu4Indexer.Mcp` | C# | Read-only MCP server exposing query tools to agents |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 
-CWTools is referenced from source via a git submodule at `external/cwtools`
-(a [fork](https://github.com/Golden-Pigeon/cwtools) pinned to a build that
-compiles against the current .NET SDK / FSharp.Core) because the published
-NuGet (0.3.0, 2019) predates the rule format used by the current EU4 config repo.
+CWTools is vendored as a git submodule at `external/cwtools`. See
+[docs/architecture.md](docs/architecture.md) for the full layout and pipeline.
 
-## Prerequisites
+## Highlights
 
-- .NET 9 SDK
-- Clone with submodules so CWTools is fetched:
-  ```bash
-  git clone --recursive https://github.com/Golden-Pigeon/eu4-indexer.git
-  # already cloned? then:
-  git submodule update --init --recursive
-  ```
-- The EU4 config rules repo, e.g.
-  [`cwtools-eu4-config`](https://github.com/cwtools/cwtools-eu4-config)
-- A copy of the EU4 game files, and optionally mod directories
+- **Multi-game** through one game-agnostic core (`GameAdapter`); EU4 + HOI4 today.
+- **Full override resolution** at three levels (file / entity / localisation)
+  across the load order — every winner/loser is recorded, not just the result.
+- **Recursive condition/effect tree** with triggers/effects/modifiers tagged from
+  the CWTools `.cwt` config.
+- **Derived causal graph** (`refs`) answering "what triggers X" and "how do I
+  reach goal Y".
+- **CJK-aware localisation**: EU4 special-escape decoding, markup stripping, and a
+  trigram FTS so colour-split Chinese text stays searchable.
+- **Steam / launcher integration**: game auto-detection, Workshop items,
+  launcher playsets, and auto-discovered enabled mods.
+- **MCP server + guided skill** (English / 中文) for querying with an agent.
+- **SQLite or PostgreSQL** export from the same run.
+- **Self-contained binary** — no .NET install needed to run it.
 
-## Usage
+## Installation
 
-```bash
-# Show what would be indexed (game dir, mods in load order, replace_paths)
-dotnet run --project Eu4Indexer.Cli -- detect \
-    --game-dir /path/to/eu4 \
-    --mod /path/to/some_mod
-
-# Build the index
-dotnet run -c Release --project Eu4Indexer.Cli -- index \
-    --game-dir /path/to/eu4 \
-    --mod /path/to/mod_a \
-    --mod /path/to/mod_b \
-    --config-dir /path/to/cwtools-eu4-config \
-    --db eu4.db \
-    --verbose
-```
-
-### Locating the game and mods
-
-- **Game**: pass `--game-dir`, or omit it to auto-detect. Auto-detection finds
-  the Steam client (via the Windows registry, or the default install location on
-  macOS / Linux), then reads its `libraryfolders.vdf` to locate every Steam
-  library — so the game is found even when installed on a non-default drive. If
-  detection fails (e.g. a non-standard client location), pass `--game-dir`
-  explicitly.
-- **Mods**: pass `--mod <path>` (repeatable — order is load order; a `.mod`
-  descriptor file or a content directory both work), or `--workshop-id <id>`
-  (repeatable) to pull a subscribed Steam Workshop mod straight from the
-  workshop content dir, or use `--auto-mods` to discover enabled mods from the
-  launcher's `dlc_load.json` / `mod/*.mod` descriptors under the Paradox
-  user-data directory. Load order is `--mod`, then `--workshop-id`, then auto.
-- **Workshop**: run the `workshop` command to list every installed Steam
-  Workshop item as `<id>  <name>` (it reads each `descriptor.mod` name only — no
-  full parse), then feed the ids you want to `--workshop-id`. Pass ids as
-  positional args (`workshop <id> ...`) to show only those.
-- **Playset**: pass `--playset <name-or-id>` to index a launcher playset's
-  *enabled* mods (in the playset's load order), read straight from the
-  launcher's `launcher-v2.sqlite`. Run the `playset` command to list all
-  playsets (`*` marks the active one), or `playset <name-or-id>` to list a
-  playset's mods with their enabled (`x`) state and Workshop ids.
-- **Config**: `--config-dir`, or the `EU4_CONFIG_DIR` environment variable.
-
-Mod-source load order when several are combined: `--mod`, then `--workshop-id`,
-then `--playset`, then `--auto-mods`.
-
-Later mods override earlier mods, and any mod overrides the base game. Override
-relationships are recorded explicitly — see below.
-
-### Workshop and playset examples
-
-> The ids, names, and counts below are illustrative placeholders.
-
-List every installed Steam Workshop mod (id + name; reads `descriptor.mod` only,
-no full parse):
-
-```bash
-dotnet run -c Release --project Eu4Indexer.Cli -- workshop
-```
-```text
-Workshop items (3):
-  1000000001   Example Mod A
-  1000000002   Example Mod B
-  1000000003   Example Mod C
-```
-
-Pass ids positionally to show only those:
-
-```bash
-dotnet run -c Release --project Eu4Indexer.Cli -- workshop 1000000001 1000000003
-```
-
-List all launcher playsets (`*` marks the active one):
-
-```bash
-dotnet run -c Release --project Eu4Indexer.Cli -- playset
-```
-```text
-Playsets (2) [* = active]:
-  * My Playset
-    Another Playset
-```
-
-Show one playset's mods with their enabled state (`x` = enabled) and Workshop ids
-— quote a name with spaces, or pass the playset id:
-
-```bash
-dotnet run -c Release --project Eu4Indexer.Cli -- playset "My Playset"
-```
-```text
-Playset 'My Playset' (active) — 3 mods (2 enabled) [x = enabled]:
-  [x] 1000000001   Example Mod A
-  [x] 1000000002   Example Mod B
-  [ ] 1000000003   Example Mod C
-```
-
-Index one or more chosen Workshop mods by id (game dir auto-detected):
-
-```bash
-dotnet run -c Release --project Eu4Indexer.Cli -- index \
-    --workshop-id 1000000001 --workshop-id 1000000002 \
-    --config-dir /path/to/cwtools-eu4-config \
-    --db eu4.db
-```
-
-Index a whole playset's *enabled* mods, in the playset's load order:
-
-```bash
-dotnet run -c Release --project Eu4Indexer.Cli -- index \
-    --playset "My Playset" \
-    --config-dir /path/to/cwtools-eu4-config \
-    --db out.db --verbose
-```
-```text
-Sources: 3 (base game + 2 mods)
-Files: NNNN, file-level overrides: NN
-Writing database: out.db
-Parsing scripts and extracting entities...
-Entities: NNNN, failed files: 0
-References: NNNN
-Parsing localisation...
-Localisation entries: NNNN
-Building indexes and FTS...
-Indexed 3 sources, NNNN files, NNNN entities (NNNN effective), NNNN loc entries.
-Overrides: NNNN. Parse errors: 0. FK violations: 0.
-```
-
-### Export target (SQLite or PostgreSQL)
-
-`--db` accepts either a **SQLite file path** (the default) or a **PostgreSQL
-connection string**, auto-detected:
-
-```bash
-# SQLite (default)
-dotnet run -c Release --project Eu4Indexer.Cli -- index … --db eu4.db
-
-# PostgreSQL — keyword form or a postgres:// URI
-dotnet run -c Release --project Eu4Indexer.Cli -- index … \
-    --db "Host=localhost;Database=eu4;Username=eu4;Password=secret"
-dotnet run -c Release --project Eu4Indexer.Cli -- index … \
-    --db "postgres://eu4:secret@localhost/eu4"
-```
-
-The Postgres export carries the same tables, override graph, and `refs` causal
-graph. Full-text search is provided by `pg_trgm` GIN indexes over `value_plain`
-and `raw_text` (the substring/CJK analogue of the SQLite trigram FTS), so
-`value_plain ILIKE '%幻梦之森%'` stays fast. Existing eu4-indexer tables in the
-target database are dropped and rebuilt; other objects are left untouched. The
-role needs `CREATE EXTENSION pg_trgm` privilege (skip search with `--no-fts`).
-
-The bundled MCP server (`Eu4Indexer.Mcp`) reads SQLite only; the Postgres export
-is for your own SQL / BI / `pgvector` use.
-
-## Schema highlights
-
-- `sources` — base game + mods, with `load_order` and descriptor metadata.
-- `files` — every file from every source (shadowed losers retained, with
-  `is_effective = 0`), plus `content_hash` and `parse_status`.
-- `entities` — generic table keyed by `entity_type` + `entity_key`; core types
-  (`event`, `mission`, `decision`, `*_modifier`) also get typed detail tables
-  (`event_details`, `mission_details`, …).
-- `script_nodes` — the recursive condition/effect tree: one row per
-  clause/leaf, with `context` (`trigger`/`effect`/`mtth`/`ai_chance`/`metadata`),
-  `depth`/`parent_id`, and a `symbol_id` tagging known triggers/effects/modifiers.
-- `symbols` — trigger/effect/modifier dictionary distilled from the `.cwt` config.
-- `localisation` — every language, with `is_replace` and `is_effective`.
-  Non-Latin mods (e.g. Chinese) that hide their text in the `l_english` slot
-  using EU4's [special-escape](https://gist.github.com/bruceCzK/96ad6e054111f929ed67291552d36334)
-  encoding are decoded back to real UTF-8 on the way in; ASCII/Latin text is
-  untouched. A `value_plain` column holds the value with inline formatting
-  markup (`§` colour codes, `£` icons) stripped; `loc_fts` indexes it with the
-  trigram tokenizer so colour-split CJK text stays searchable.
-- Override tables: `file_overrides`, `entity_overrides`, `loc_overrides`,
-  unified by the `v_override_summary` view (level + kind + winner/loser source).
-- `refs` — derived causal graph: one row per reference a script node makes
-  (fires an event, sets/checks a flag or variable, applies/checks a modifier,
-  calls a scripted trigger/effect, on_action firing). Flags are scope-qualified
-  (`country_flag`/`global_flag`/`province_flag`/`ruler_flag`) and conditions
-  carry a `negated` flag. Powers "what triggers X / what would reach goal Y".
-- FTS5: `loc_fts`, `entity_fts` for full-text search over localisation and raw
-  entity script.
-
-`PRAGMA user_version` and the `meta` table carry schema version and run provenance.
-
-## Example queries
-
-```sql
--- Events that use the add_stability effect
-SELECT DISTINCT e.entity_key
-FROM entities e
-JOIN script_nodes n ON n.entity_id = e.entity_id
-JOIN symbols s ON s.symbol_id = n.symbol_id
-WHERE e.entity_type = 'event' AND e.is_effective = 1
-  AND s.kind = 'effect' AND s.name = 'add_stability';
-
--- What did a mod (source_id = 2) override, across all three levels?
-SELECT level, kind, what FROM v_override_summary WHERE winner_source_id = 2;
-
--- Entities whose trigger references the country tag FRA
-SELECT DISTINCT e.entity_type, e.entity_key
-FROM script_nodes n
-JOIN entities e USING (entity_id)
-WHERE n.context = 'trigger' AND (n.value = 'FRA' OR (n.key = 'tag' AND n.value = 'FRA'));
-```
-
-## Querying with an agent (MCP)
-
-`eu4indexer serve` runs a read-only [MCP](https://modelcontextprotocol.io) server
-that exposes the index to an AI agent as typed tools, so the correct joins
-(effective-only, the causal graph, localisation) are built in rather than left
-to ad-hoc SQL. It serves the **active** index from the registry (or `--db` /
-`EU4_DB`) and refuses a schema-version mismatch on startup. When several indexes
-are registered, the agent can switch between them mid-session.
-
-Tools so far: `explain_entity` (an entity's conditions, options, and what it
-references / is referenced by); `what_triggers` and `what_does_it_do` (reverse
-and forward traversal of the causal graph); `find_by_condition` (what is gated
-by a flag/variable/trigger); `trace_to_goal` (bounded backward-chaining: what
-sequence of actions reaches an event/flag/variable); `find_dangling` (flags
-checked but never set, events fired but undefined — candidate bugs);
-`search_localisation` (markup-stripped, CJK-friendly text search);
-`search_everything` (cross-type search when the content type is unknown);
-`resolve_symbol` (explain a trigger/effect, or expand a scripted definition);
-`list_sources` and `get_overrides` (load order and who-overrode-what);
-`list_databases` and `select_database` (pick which registered index to query);
-`describe_schema` (the DDL and a data dictionary — call it first); and
-`read_query` (a guarded read-only SELECT escape hatch).
-
-[`skills/eu4-indexer/SKILL.md`](skills/eu4-indexer/SKILL.md) teaches an agent the
-EU4 causal model and three workflows (explain an entity, explain a phenomenon /
-find a bug, and plan how to reach a goal) for combining these tools.
-
-### Install (recommended)
-
-A script installs the self-contained `eu4indexer` binary (no .NET install needed)
-plus the bundled skill into `~/.eu4indexer` and puts it on your PATH. Then a few
-commands set everything up so the agent works **from any directory**.
+### Script (recommended)
 
 ```bash
 # macOS / Linux
@@ -283,65 +71,94 @@ curl -fsSL https://raw.githubusercontent.com/Golden-Pigeon/eu4-indexer/main/inst
 irm https://raw.githubusercontent.com/Golden-Pigeon/eu4-indexer/main/install.ps1 | iex
 ```
 
-Then:
+The script downloads the self-contained `eu4indexer` binary plus the bundled
+skill into `~/.eu4indexer`, symlinks it onto your PATH via `~/.local/bin`, and
+clears the macOS Gatekeeper quarantine / Windows Mark-of-the-Web on the unsigned
+binary. The install location is configurable with `EU4INDEXER_HOME` or
+`--location DIR`.
+
+### Manual
+
+Download a release archive for your platform from the
+[Releases](https://github.com/Golden-Pigeon/eu4-indexer/releases) page, extract
+it, and put `bin/eu4indexer` on your PATH. The binary bundles its own runtime, so
+no .NET install is required.
+
+### From source
+
+Requires the **.NET 9 SDK**. Clone with submodules so CWTools is fetched:
 
 ```bash
-eu4indexer setup                 # download the cwtools config rules (per game)
-eu4indexer index                 # build an index from your local EU4 install
-                                 # (auto-detects the game; add --mod / --playset / etc.)
-eu4indexer install               # register the MCP server + skill with Claude Code & Codex
+git clone --recursive https://github.com/Golden-Pigeon/eu4-indexer.git
+# already cloned without --recursive?
+git submodule update --init --recursive
+
+dotnet build Eu4Indexer.slnx
+# run any command via:
+dotnet run --project Eu4Indexer.Cli -- <command> [args]
 ```
 
-- The index defaults to `~/.eu4indexer/db/<game>/<name>.db` and is recorded in a
-  registry; `eu4indexer list` shows them and `eu4indexer use <name>` sets the
-  active one. Pass `--name` to build several (e.g. `vanilla`, a playset).
-- `eu4indexer install` writes a **user-scoped** MCP server pointing at the
-  installed binary by absolute path and copies the skill to `~/.claude/skills`,
-  so no plugin and no per-directory setup are needed. Choose agents with
-  `--agents claude,codex`.
-- The install location is configurable: `--location DIR` or `EU4INDEXER_HOME`.
-- macOS: the binary is unsigned, so the installer clears the Gatekeeper
-  quarantine attribute. Windows: it clears the Mark-of-the-Web.
+## Usage
 
-After `eu4indexer install`, start your agent anywhere and ask EU4 content
-questions; the bundled skill drives the `eu4` tools.
+```text
+USAGE: eu4indexer [--help] <subcommand> [<args>]
 
-### Manual registration
-
-To register with another MCP client, point it at the installed binary:
-
-```json
-{ "mcpServers": { "eu4": {
-  "command": "/absolute/path/to/.eu4indexer/bin/eu4indexer",
-  "args": ["serve"]
-} } }
+SUBCOMMANDS:
+    index       parse game + mods and write the index
+    detect      show resolved game dir, mods, and predicted file overrides
+    workshop    list installed Steam Workshop items (id and mod name)
+    playset     list launcher playsets, or the mods of one playset
+    serve       run the read-only MCP server over stdio
+    setup       download the cwtools config rules for the game
+    install     register the MCP server + skill with local agents
+    use         set the active index the MCP server serves by default
+    list        list registered indexes (* marks the active one)
+    version     print the eu4indexer version and exit
 ```
 
-`serve` serves the active index from the registry; add `"--db", "/abs/path.db"`
-to pin a specific one. Building from source instead? Use
-`dotnet run --project Eu4Indexer.Cli -- serve --db /abs/path/eu4.db`.
+Each command takes `--game eu4|hoi4` (default `eu4`) and `--help`. The full
+manual — every flag, mod/game selection, the SQLite/PostgreSQL export target, and
+the Workshop/playset walkthroughs — is in
+[docs/commands.md](docs/commands.md).
 
-## Testing
+### A typical run
 
 ```bash
-dotnet test
+eu4indexer setup       # download the cwtools config rules (per game)
+eu4indexer index       # build an index from your local install (auto-detects
+                       # the game; add --mod / --playset / etc.)
+eu4indexer install     # register the MCP server + skill with Claude Code / Codex
 ```
 
-Unit tests run anywhere. Integration tests index the real game + example mod and
-no-op automatically when those paths are absent. To enable them, copy
-`.env.example` to `.env` and fill in the paths (or set `EU4_GAME_DIR`,
-`EU4_CONFIG_DIR`, and `EU4_EXAMPLE_MOD_DIR` in the environment, which takes
-precedence). `.env` is git-ignored.
+Indexes default to `~/.eu4indexer/db/<game>/<name>.db` and are tracked in a
+registry: `eu4indexer list` shows them and `eu4indexer use <name>` sets the
+active one.
 
-```bash
-cp .env.example .env   # then edit the paths
-dotnet test
-```
+### Querying with an agent (skill)
 
-Setting `EU4_PG_CONN` to a PostgreSQL connection string additionally enables the
-Postgres export test, which indexes into both backends and asserts they match.
+`eu4indexer install` writes a user-scoped MCP server pointing at the installed
+binary and copies the per-game skill (`skills/eu4-indexer/<game>/<lang>/SKILL.md`)
+into your agent — no plugin and no per-directory setup needed. Choose the skill
+language with `--language en|zh` and the agents with `--agents claude,codex`.
+Afterwards, start your agent in **any directory** and ask game-content questions
+(events, missions, focuses, modifiers, flags, mod overrides, localisation, "how
+do I achieve X", "is this a bug"); the skill drives the `eu4` MCP tools. See the
+[MCP tool list](docs/commands.md#mcp-tools).
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
+## Documentation
+
+- [Project Structure & Architecture](docs/architecture.md) — layout, modules,
+  the `GameAdapter` abstraction, and the indexing pipeline.
+- [Database Schema](docs/database.md) — tables, the override graph, the `refs`
+  causal graph, views, full-text search, and the PostgreSQL export.
+- [Command Reference](docs/commands.md) — every command and flag, mod/game
+  selection, export targets, and the MCP tools.
+
+## Contributing
+
+Contributions are welcome — bug fixes, new extractors, and new game adapters. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and the test workflow
+(`dotnet test`; integration tests no-op without game data).
 
 ## License
 
@@ -351,9 +168,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
 ## Disclaimer
 
 - **Not affiliated with Paradox Interactive.** This is an unofficial, fan-made
-  tool. It is not developed, endorsed, sponsored by, or affiliated with Paradox
-  Interactive AB. *Europa Universalis IV*, EU4, and all related names, assets,
-  and trademarks are the property of Paradox Interactive.
+  tool, not developed, endorsed, sponsored by, or affiliated with Paradox
+  Interactive AB. *Europa Universalis IV*, *Hearts of Iron IV*, and all related
+  names, assets, and trademarks are the property of Paradox Interactive.
 - **No game content is included or distributed.** This repository ships only
   source code. It reads game and mod files that already exist on your own
   machine; you must own a legitimate copy of the game to use it.
@@ -370,5 +187,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
 
 ## Acknowledgements
 
+- [CWTools](https://github.com/cwtools/cwtools) — the Paradox-script parser this
+  tool is built on, vendored as a [fork](https://github.com/Golden-Pigeon/cwtools).
 - The non-Latin EU4 special-escape decoding logic is based on
   [bruceCzK's original conversion script](https://gist.github.com/bruceCzK/96ad6e054111f929ed67291552d36334).
