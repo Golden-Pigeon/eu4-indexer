@@ -49,14 +49,14 @@ set up, the conventions the codebase follows, and how to land a change.
 | Project | Language | Purpose |
 |---|---|---|
 | `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, reference graph, SQLite/PostgreSQL writer |
-| `Eu4Indexer.Cli` | F# (Argu) | `index` and `detect` commands |
+| `Eu4Indexer.Cli` | F# (Argu) | the `eu4indexer` CLI (`index`, `detect`, `serve`, `setup`, `install`, discovery/registry commands) |
 | `Eu4Indexer.Mcp` | C# | Read-only MCP server exposing query tools to agents |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 
 `Eu4Indexer.Core` modules compile in dependency order (see the `.fsproj`); when
 you add a file, place it in the `<Compile>` list after everything it depends on.
-The design is game-agnostic at its core (`GameAdapter`); EU4 is the only
-implementation today. Keep all CWTools calls isolated to `Parsing.fs`,
+The design is game-agnostic at its core (`GameAdapter`); EU4 and HOI4 are
+implemented today. Keep all CWTools calls isolated to `Parsing.fs`,
 `ConfigCatalog.fs`, and `Localisation.fs`.
 
 `Eu4Indexer.Mcp` is read-only: open the database with `Mode=ReadOnly`, keep all
