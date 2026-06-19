@@ -153,6 +153,7 @@ do I achieve X", "is this a bug"); the skill drives the `eu4` MCP tools. See the
   causal graph, views, full-text search, and the PostgreSQL export.
 - [Command Reference](docs/commands.md) — every command and flag, mod/game
   selection, export targets, and the MCP tools.
+- [Changelog](CHANGELOG.md) — what changed in each release.
 
 ## Contributing
 

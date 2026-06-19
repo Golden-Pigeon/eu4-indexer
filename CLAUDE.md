@@ -3,7 +3,8 @@
 Auto-loaded guidance for agents working in this repo. Deeper references:
 [docs/architecture.md](docs/architecture.md) (structure & pipeline),
 [docs/database.md](docs/database.md) (schema), [docs/commands.md](docs/commands.md)
-(CLI), [CONTRIBUTING.md](CONTRIBUTING.md) (full dev workflow).
+(CLI), [CONTRIBUTING.md](CONTRIBUTING.md) (full dev workflow),
+[CHANGELOG.md](CHANGELOG.md) (per-version history).
 
 ## What this is
 
@@ -89,6 +90,10 @@ offline mode → setup → index → serve), on all three platforms.
 - **Docs travel with the code — update them in the same commit, before you commit.**
   Whenever a change alters documented behaviour, update the matching docs in the
   same change; never commit code and "doc it later". Mapping:
+  - **Any user-facing change** (feature, fix, behaviour, build/install) → add a
+    bullet under `## [Unreleased]` in **`CHANGELOG.md`**, with a source link,
+    preferring (high → low) **PR → issue → commit hash**. This is required, not
+    optional — `CHANGELOG.md` must never lag the user-facing changes on `main`.
   - CLI commands / flags / output → `docs/commands.md`, the README usage section,
     and the relevant `skills/eu4-indexer/<game>/<lang>/SKILL.md` if the tool/MCP
     surface changed.
@@ -108,11 +113,14 @@ offline mode → setup → index → serve), on all three platforms.
   1. **Bump the version in lockstep** — `Eu4Indexer.Core/AppInfo.fs` **and** both
      `.claude-plugin/*.json` (see [Keep these in sync](#keep-these-in-sync)).
      Commit as `chore: bump version to X.Y.Z`.
-  2. Open a PR; wait for `smoke` to pass; rebase-merge; update local `main`.
-  3. Build every target: `./scripts/build-binaries.sh` — emits version-less
+  2. **Roll `CHANGELOG.md`**: rename the `## [Unreleased]` heading to
+     `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty `## [Unreleased]` above it, and
+     update the compare links at the bottom.
+  3. Open a PR; wait for `smoke` to pass; rebase-merge; update local `main`.
+  4. Build every target: `./scripts/build-binaries.sh` — emits version-less
      `eu4indexer-<rid>` archives in `dist/` (the release tag, not the filename,
      carries the version).
-  4. Publish the release with all assets:
+  5. Publish the release with all assets:
      `gh release create vX.Y.Z --generate-notes dist/eu4indexer-*`. This tags the
      commit and attaches the archives. The installer resolves the **same**
      version-less asset name for both the default
