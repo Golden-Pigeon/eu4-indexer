@@ -25,4 +25,8 @@
     <ProjectReference Include="..\Eu4Indexer.Mcp\Eu4Indexer.Mcp.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="fixtures\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="fixtures\" />
+  </ItemGroup>
+
 </Project>

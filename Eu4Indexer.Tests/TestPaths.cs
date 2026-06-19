@@ -17,20 +17,29 @@ public static class TestPaths
 
     public static string? ExampleModDir => Resolve("EU4_EXAMPLE_MOD_DIR");
 
-    /// The synthetic, copyright-safe example game/mod shipped in the repo, used
-    /// by the fixture integration tests and CI (no real game files needed).
-    public static string? FixtureGameDir => FixtureDir("example-game");
+    /// Synthetic fixtures: fixtures/<game>/example-game
+    public static string? FixtureGameDir => FixtureDir("eu4", "example-game");
 
-    public static string? FixtureModDir => FixtureDir("example-mod");
+    public static string? FixtureModDir => FixtureDir("eu4", "example-mod");
 
-    private static string? FixtureDir(string name)
+    public static string? FixtureHoi4GameDir => FixtureDir("hoi4", "example-game");
+
+    /// HOI4 config dir, if downloaded by `eu4indexer setup`.
+    public static string? Hoi4ConfigDir =>
+        ResolveDir(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".eu4indexer", "config", "hoi4"));
+
+    private static string? ResolveDir(string path) =>
+        Directory.Exists(path) ? path : null;
+
+    private static string? FixtureDir(string game, string name)
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             foreach (var candidate in new[]
                      {
-                         Path.Combine(dir.FullName, "fixtures", name),
-                         Path.Combine(dir.FullName, "Eu4Indexer.Tests", "fixtures", name),
+                         Path.Combine(dir.FullName, "fixtures", game, name),
+                         Path.Combine(dir.FullName, "Eu4Indexer.Tests", "fixtures", game, name),
                      })
                 if (Directory.Exists(candidate))
                     return candidate;

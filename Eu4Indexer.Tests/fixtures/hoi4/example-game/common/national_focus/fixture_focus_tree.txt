@@ -1,0 +1,43 @@
+# Synthetic HOI4-format focus tree. No Paradox content.
+focus_tree = {
+	id = fixture_focus_tree
+	country = { factor = 0 }
+
+	focus = {
+		id = fixture_focus_1
+		icon = GFX_focus_generic
+		x = 0
+		y = 0
+		available = {
+			has_country_flag = fixture_ready
+		}
+		completion_reward = {
+			set_country_flag = fixture_focus_1_done
+		}
+	}
+
+	focus = {
+		id = fixture_focus_2
+		icon = GFX_focus_generic
+		x = 0
+		y = 1
+		prerequisite = { focus = fixture_focus_1 }
+		available = {
+			has_country_flag = fixture_focus_1_done
+		}
+		completion_reward = {
+			add_stability = 1
+		}
+	}
+
+	focus = {
+		id = fixture_focus_3
+		icon = GFX_focus_generic
+		x = 1
+		y = 1
+		mutually_exclusive = { focus = fixture_focus_2 }
+		completion_reward = {
+			set_variable = { which = fixture_var value = 5 }
+		}
+	}
+}
