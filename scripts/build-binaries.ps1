@@ -72,19 +72,30 @@ foreach ($rid in $Rids) {
     # One archive per target, containing bin/ and skills/.
     $base = "eu4indexer-$Version-$rid"
     if ($rid -like 'win-*') {
-        $archive = Join-Path $DistDir "$base.zip"
+        $ext = 'zip'
+        $archive = Join-Path $DistDir "$base.$ext"
         if (Test-Path $archive) { Remove-Item -Force $archive }
         Compress-Archive -Path (Join-Path $ridDir '*') -DestinationPath $archive
     }
     else {
-        $archive = Join-Path $DistDir "$base.tar.gz"
+        $ext = 'tar.gz'
+        $archive = Join-Path $DistDir "$base.$ext"
         if (Test-Path $archive) { Remove-Item -Force $archive }
         # tar ships with Windows 10+ (bsdtar) and with macOS/Linux.
         tar -czf $archive -C $ridDir .
         if ($LASTEXITCODE -ne 0) { throw "tar failed for $rid" }
         if ($IsWindows -or $env:OS -eq 'Windows_NT') { $builtUnixOnWindows = $true }
     }
+
+    # Also publish a version-less copy so the installer's default
+    # 'releases/latest/download/eu4indexer-<rid>.<ext>' redirect resolves without
+    # the script knowing the version. The versioned name stays for pinned installs
+    # (-Version) and human-readable release listings.
+    $latest = Join-Path $DistDir "eu4indexer-$rid.$ext"
+    if (Test-Path $latest) { Remove-Item -Force $latest }
+    Copy-Item -Force $archive $latest
     Write-Host "    -> $archive"
+    Write-Host "    -> $latest"
 }
 
 Write-Host "Done. Archives in $DistDir" -ForegroundColor Green

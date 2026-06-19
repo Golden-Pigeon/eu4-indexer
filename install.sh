@@ -11,13 +11,13 @@
 #
 # Options (env or flags):
 #   EU4INDEXER_HOME / --location DIR   install dir (default: ~/.eu4indexer)
-#   EU4INDEXER_VERSION / --version V   release tag (default: v0.2.0)
+#   EU4INDEXER_VERSION / --version V   release tag to pin (default: latest)
 #   EU4INDEXER_DIST PATH               install from a local archive or directory
 #                                      (offline/dev mode; skips the download)
 set -eu
 
 REPO="Golden-Pigeon/eu4-indexer"
-VERSION="${EU4INDEXER_VERSION:-v0.2.0}"
+VERSION="${EU4INDEXER_VERSION:-}"   # empty = install the latest release
 INSTALL_DIR="${EU4INDEXER_HOME:-$HOME/.eu4indexer}"
 DIST="${EU4INDEXER_DIST:-}"
 
@@ -62,9 +62,17 @@ if [ -n "$DIST" ]; then
     tar -xzf "$DIST" -C "$stage"
   fi
 else
-  ver_no_v="${VERSION#v}"
-  url="https://github.com/$REPO/releases/download/$VERSION/eu4indexer-$ver_no_v-$RID.tar.gz"
-  echo "Downloading eu4indexer $VERSION ($RID)"
+  if [ -n "$VERSION" ]; then
+    # Pinned release: the asset name carries the version (eu4indexer-<ver>-<rid>).
+    ver_no_v="${VERSION#v}"
+    url="https://github.com/$REPO/releases/download/$VERSION/eu4indexer-$ver_no_v-$RID.tar.gz"
+    echo "Downloading eu4indexer $VERSION ($RID)"
+  else
+    # Default: GitHub's latest-release redirect to the version-less asset, so the
+    # installer never needs to know or hardcode the current version.
+    url="https://github.com/$REPO/releases/latest/download/eu4indexer-$RID.tar.gz"
+    echo "Downloading eu4indexer latest ($RID)"
+  fi
   echo "  $url"
   curl -fsSL "$url" -o "$tmp/eu4indexer.tar.gz"
   tar -xzf "$tmp/eu4indexer.tar.gz" -C "$stage"
