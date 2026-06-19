@@ -1,0 +1,14 @@
+# Synthetic HOI4-format ideas. No Paradox content.
+ideas = {
+	political_advisor = {
+		fixture_advisor = {
+			allowed = {
+				has_country_flag = fixture_ready
+			}
+			modifier = {
+				political_power_factor = 0.15
+				stability_factor = 0.10
+			}
+		}
+	}
+}

@@ -73,6 +73,47 @@ public class FixtureIndexTests
     }
 
     [Fact]
+    public void Index_Hoi4Fixture_ProducesQueryableDatabase()
+    {
+        var gameDir = TestPaths.FixtureHoi4GameDir;
+        var configDir = TestPaths.Hoi4ConfigDir;
+        if (gameDir is null || configDir is null) return;
+
+        var dbPath = Path.Combine(Path.GetTempPath(), $"hoi4_fixture_{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var result = Pipeline.runWithPaths(
+                GameAdapterModule.hoi4, gameDir, ToFs(), configDir, dbPath,
+                skipGeneric: false, withFts: true, languages: ToFs("english", "simp_chinese"),
+                log: FuncConvert.FromAction<string>(_ => { }));
+
+            Assert.True(result.IsOk, result.IsError ? result.ErrorValue : "");
+            var report = result.ResultValue;
+
+            Assert.Equal(0, report.ParseErrorCount);
+            Assert.Equal(0, report.ForeignKeyViolations);
+            Assert.True(report.EntityCount >= 6, $"expected ≥6 entities, got {report.EntityCount}");
+
+            using var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
+            conn.Open();
+
+            Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='focus' AND is_effective=1") >= 3);
+            Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='focus_tree' AND is_effective=1") >= 1);
+            Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='idea' AND is_effective=1") >= 1);
+            Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='event' AND is_effective=1") >= 2);
+
+            Assert.Equal(Schema.UserVersion, Scalar(conn, "PRAGMA user_version"));
+        }
+        finally
+        {
+            File.Delete(dbPath);
+            File.Delete(dbPath + "-wal");
+            File.Delete(dbPath + "-shm");
+        }
+    }
+
+    [Fact]
     public void Index_ExampleGameWithMod_RecordsOverrides()
     {
         var gameDir = TestPaths.FixtureGameDir;
