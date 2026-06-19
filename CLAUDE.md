@@ -84,6 +84,25 @@ Adding integration assertions that need game data: gate on `TestPaths` and
 CI). CI is `.github/workflows/smoke.yml` (build → install via the script in
 offline mode → setup → index → serve), on all three platforms.
 
+## Push, PR & release
+
+- **Branch + PR by default.** Don't commit straight to `main` unless the user
+  explicitly asks for a quick change. Use Conventional Commit messages and keep
+  PRs focused.
+- **Merge with rebase**, and only after the `smoke` CI workflow is green.
+- **Cutting a release** (manual — there is no release workflow):
+  1. **Bump the version in lockstep** — `Eu4Indexer.Core/AppInfo.fs` **and** both
+     `.claude-plugin/*.json` (see [Keep these in sync](#keep-these-in-sync)).
+     Commit as `chore: bump version to X.Y.Z`.
+  2. Open a PR; wait for `smoke` to pass; rebase-merge; update local `main`.
+  3. Build every target: `./scripts/build-binaries.sh` — emits both the versioned
+     `eu4indexer-<ver>-<rid>` and the version-less `eu4indexer-<rid>` archives in `dist/`.
+  4. Publish the release, uploading **all** assets:
+     `gh release create vX.Y.Z --generate-notes dist/eu4indexer-*`. This tags the
+     commit and attaches both archive sets. The **version-less** copies are what
+     the default `releases/latest/download/…` installer resolves to — omit them and
+     the one-line install 404s until the next release.
+
 ## Keep these in sync
 
 These are the non-obvious "change X → also change Y" couplings CI or users break on.
