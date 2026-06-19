@@ -86,6 +86,20 @@ offline mode → setup → index → serve), on all three platforms.
 
 ## Push, PR & release
 
+- **Docs travel with the code — update them in the same commit, before you commit.**
+  Whenever a change alters documented behaviour, update the matching docs in the
+  same change; never commit code and "doc it later". Mapping:
+  - CLI commands / flags / output → `docs/commands.md`, the README usage section,
+    and the relevant `skills/eu4-indexer/<game>/<lang>/SKILL.md` if the tool/MCP
+    surface changed.
+  - Database schema (tables, columns, views, FTS) → `docs/database.md`.
+  - Project structure, modules, or the pipeline → `docs/architecture.md`.
+  - Build / install / release flow → the README install section and this file.
+  - Anything touching the couplings below → update [Keep these in sync](#keep-these-in-sync) too.
+
+  If a change is purely internal and documented nowhere, say so in the commit body
+  rather than skipping silently.
+
 - **Branch + PR by default.** Don't commit straight to `main` unless the user
   explicitly asks for a quick change. Use Conventional Commit messages and keep
   PRs focused.
