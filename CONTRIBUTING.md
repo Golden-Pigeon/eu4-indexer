@@ -40,6 +40,10 @@ set up, the conventions the codebase follows, and how to land a change.
    - `EU4_PG_CONN` — (optional) a PostgreSQL connection string; enables the
      Postgres export test, which indexes into SQLite and Postgres and compares
      them. The role needs `CREATE EXTENSION pg_trgm`.
+   - `HOI4_GAME_DIR` — (optional) a real Hearts of Iron IV install; enables the
+     HOI4 integration test. The config defaults to what `eu4indexer setup` fetched
+     (`~/.eu4indexer/config/hoi4`), or set `HOI4_CONFIG_DIR`; `HOI4_EXAMPLE_MOD_DIR`
+     additionally enables the HOI4 override test.
 
    `.env` is git-ignored; never commit game files, mods, or generated `*.db`
    indexes.
