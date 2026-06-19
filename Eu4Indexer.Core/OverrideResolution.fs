@@ -150,30 +150,42 @@ module OverrideResolution =
             |> List.map (fun r -> (r.LocKey, r.Language), r)
             |> Map.ofList
 
-        let fileLevelOverrides =
+        // Entries from non-effective (shadowed/replaced) files: unlike script
+        // files, localisation is additive — the game engine loads ALL .yml
+        // files from all sources.  A later file shadows an earlier one only
+        // for the keys it actually defines; keys present only in the earlier
+        // file remain visible.  We therefore only retire a row from a
+        // non-effective file when an effective winner for the same (key,
+        // language) exists; otherwise the row stays effective.
+        let fileLevelOverrides, fileLevelLoserIds =
             fromIneffectiveFiles
             |> List.map (fun loser ->
-                let winner = Map.tryFind (loser.LocKey, loser.Language) winnerByKey
+                match Map.tryFind (loser.LocKey, loser.Language) winnerByKey with
+                | None -> None, None
+                | Some winner ->
+                    let kind =
+                        match Map.tryFind loser.FileId fileOverrideKind with
+                        | Some FileReplacePath -> LocReplacePath
+                        | _ -> LocFileShadow
 
-                let kind =
-                    match Map.tryFind loser.FileId fileOverrideKind with
-                    | Some FileReplacePath -> LocReplacePath
-                    | _ -> LocFileShadow
+                    let ov =
+                        { LocKey = loser.LocKey
+                          Language = loser.Language
+                          Kind = kind
+                          LoserLocId = loser.LocId
+                          WinnerLocId = Some winner.LocId
+                          WinnerSourceId = Some winner.SourceId
+                          LoserSourceId = loser.SourceId
+                          IdenticalContent = winner.Value = loser.Value }
 
-                { LocKey = loser.LocKey
-                  Language = loser.Language
-                  Kind = kind
-                  LoserLocId = loser.LocId
-                  WinnerLocId = winner |> Option.map (fun w -> w.LocId)
-                  WinnerSourceId = winner |> Option.map (fun w -> w.SourceId)
-                  LoserSourceId = loser.SourceId
-                  IdenticalContent =
-                    winner
-                    |> Option.map (fun w -> w.Value = loser.Value)
-                    |> Option.defaultValue false })
+                    Some ov, Some loser.LocId)
+            |> List.unzip
+
+        let fileLevelOverrides = fileLevelOverrides |> List.choose id
+        let fileLevelLoserIds = fileLevelLoserIds |> List.choose id |> Set.ofList
 
         let ineffectiveIds =
-            Set.union keyLevelLoserIds (fromIneffectiveFiles |> List.map (fun r -> r.LocId) |> Set.ofList)
+            Set.union keyLevelLoserIds fileLevelLoserIds
 
         { Effectiveness =
             rows
