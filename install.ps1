@@ -45,9 +45,9 @@ try {
     }
     else {
         if ($Version) {
-            # Pinned release: the asset name carries the version (eu4indexer-<ver>-<rid>).
-            $verNoV = $Version.TrimStart('v')
-            $url = "https://github.com/$Repo/releases/download/$Version/eu4indexer-$verNoV-$Rid.zip"
+            # Pinned release: the tag segment selects the version; same version-less
+            # asset name as the latest path.
+            $url = "https://github.com/$Repo/releases/download/$Version/eu4indexer-$Rid.zip"
             Write-Host "Downloading eu4indexer $Version ($Rid)"
         }
         else {

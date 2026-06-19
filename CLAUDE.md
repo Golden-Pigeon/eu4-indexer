@@ -95,13 +95,15 @@ offline mode → setup → index → serve), on all three platforms.
      `.claude-plugin/*.json` (see [Keep these in sync](#keep-these-in-sync)).
      Commit as `chore: bump version to X.Y.Z`.
   2. Open a PR; wait for `smoke` to pass; rebase-merge; update local `main`.
-  3. Build every target: `./scripts/build-binaries.sh` — emits both the versioned
-     `eu4indexer-<ver>-<rid>` and the version-less `eu4indexer-<rid>` archives in `dist/`.
-  4. Publish the release, uploading **all** assets:
+  3. Build every target: `./scripts/build-binaries.sh` — emits version-less
+     `eu4indexer-<rid>` archives in `dist/` (the release tag, not the filename,
+     carries the version).
+  4. Publish the release with all assets:
      `gh release create vX.Y.Z --generate-notes dist/eu4indexer-*`. This tags the
-     commit and attaches both archive sets. The **version-less** copies are what
-     the default `releases/latest/download/…` installer resolves to — omit them and
-     the one-line install 404s until the next release.
+     commit and attaches the archives. The installer resolves the **same**
+     version-less asset name for both the default
+     (`releases/latest/download/…`) and a pinned (`releases/download/<tag>/…`)
+     install, so every release must carry these assets or the install 404s.
 
 ## Keep these in sync
 
@@ -120,15 +122,16 @@ These are the non-obvious "change X → also change Y" couplings CI or users bre
   - **CLI command/flag surface** — the job exercises `version`/`setup`/`index`/
     `list`/`serve`; renaming or changing required flags breaks it.
   - **Release archive names** from `scripts/build-binaries.*`
-    (`eu4indexer-<version>-<rid>.{tar.gz,zip}` plus the version-less
-    `eu4indexer-<rid>.…` copy) — the job and the installers reference them.
+    (`eu4indexer-<rid>.{tar.gz,zip}`, version-less) — the job and the installers
+    reference them.
 
 - **Installer ↔ build naming**: download URLs in `install.sh` / `install.ps1`
-  must match the asset names emitted by `scripts/build-binaries.{sh,ps1}`. The
-  default install uses the **version-less** name via GitHub's
-  `releases/latest/download/…` redirect; `--version`/`EU4INDEXER_VERSION` pins via
-  the **versioned** name. A new latest release must carry the version-less assets
-  or the default install 404s.
+  must match the asset names emitted by `scripts/build-binaries.{sh,ps1}`. Both
+  the default (`releases/latest/download/…`) and pinned
+  (`--version`/`EU4INDEXER_VERSION` → `releases/download/<tag>/…`) paths use the
+  **same version-less** asset name; the version is selected by which release the
+  asset hangs on, not by the filename. Every release must carry these assets or
+  the install 404s.
 
 - **Database schema is dual-dialect**: `Database/Schema.fs` (SQLite) and
   `Database/PostgresSchema.fs` (Postgres) mirror each other table-for-table and

@@ -9,20 +9,17 @@
 # Runs on Windows (Windows PowerShell 5.1 or PowerShell 7+) and, since it is
 # plain pwsh, on macOS/Linux too. The bash equivalent is build-binaries.sh.
 #
-# Archives are named eu4indexer-<version>-<rid>; -Version defaults to the value
-# in Eu4Indexer.Core/AppInfo.fs so it matches the release tag.
+# Archives are named eu4indexer-<rid> (version-less): the release tag the assets
+# are attached to is what selects the version, so the same stable name serves both
+# the latest (releases/latest/download/...) and pinned (releases/download/<tag>/...)
+# install paths.
 #
 # Usage:
 #   ./scripts/build-binaries.ps1                          # all six targets
 #   ./scripts/build-binaries.ps1 linux-x64 osx-arm64      # only the listed RIDs
-#   ./scripts/build-binaries.ps1 -Version 0.1.0           # override version label
 
 [CmdletBinding()]
 param(
-    # -Version is named-only (because $Rids declares an explicit Position, every
-    # parameter without a Position becomes named-only), so bare arguments are
-    # always treated as RIDs rather than being captured by -Version.
-    [Parameter()] [string] $Version,
     [Parameter(Position = 0, ValueFromRemainingArguments = $true)] [string[]] $Rids
 )
 
@@ -37,13 +34,6 @@ $CliProject = 'Eu4Indexer.Cli/Eu4Indexer.Cli.fsproj'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DistDir = Join-Path $RepoRoot 'dist'
-
-if (-not $Version) {
-    # Default to the single source of truth in AppInfo.fs (let Version = "x.y.z").
-    $appInfo = Join-Path $RepoRoot 'Eu4Indexer.Core/AppInfo.fs'
-    $m = Select-String -Path $appInfo -Pattern 'Version\s*=\s*"([^"]+)"' | Select-Object -First 1
-    if ($m) { $Version = $m.Matches[0].Groups[1].Value } else { $Version = Get-Date -Format 'yyyyMMdd' }
-}
 
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 $builtUnixOnWindows = $false
@@ -70,32 +60,22 @@ foreach ($rid in $Rids) {
     Copy-Item -Recurse -Force (Join-Path $RepoRoot 'skills') (Join-Path $ridDir 'skills')
 
     # One archive per target, containing bin/ and skills/.
-    $base = "eu4indexer-$Version-$rid"
+    # Version-less name: the release tag the asset is attached to selects the
+    # version, so the same name serves both the latest and pinned install paths.
     if ($rid -like 'win-*') {
-        $ext = 'zip'
-        $archive = Join-Path $DistDir "$base.$ext"
+        $archive = Join-Path $DistDir "eu4indexer-$rid.zip"
         if (Test-Path $archive) { Remove-Item -Force $archive }
         Compress-Archive -Path (Join-Path $ridDir '*') -DestinationPath $archive
     }
     else {
-        $ext = 'tar.gz'
-        $archive = Join-Path $DistDir "$base.$ext"
+        $archive = Join-Path $DistDir "eu4indexer-$rid.tar.gz"
         if (Test-Path $archive) { Remove-Item -Force $archive }
         # tar ships with Windows 10+ (bsdtar) and with macOS/Linux.
         tar -czf $archive -C $ridDir .
         if ($LASTEXITCODE -ne 0) { throw "tar failed for $rid" }
         if ($IsWindows -or $env:OS -eq 'Windows_NT') { $builtUnixOnWindows = $true }
     }
-
-    # Also publish a version-less copy so the installer's default
-    # 'releases/latest/download/eu4indexer-<rid>.<ext>' redirect resolves without
-    # the script knowing the version. The versioned name stays for pinned installs
-    # (-Version) and human-readable release listings.
-    $latest = Join-Path $DistDir "eu4indexer-$rid.$ext"
-    if (Test-Path $latest) { Remove-Item -Force $latest }
-    Copy-Item -Force $archive $latest
     Write-Host "    -> $archive"
-    Write-Host "    -> $latest"
 }
 
 Write-Host "Done. Archives in $DistDir" -ForegroundColor Green

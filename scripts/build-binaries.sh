@@ -11,13 +11,14 @@
 # For macOS/Linux. On Windows use scripts/build-binaries.ps1 (this script also
 # works under Git Bash / WSL if `dotnet`, `tar`, and `zip` are on PATH).
 #
-# Archives are named eu4indexer-<version>-<rid>; --version defaults to the value
-# in Eu4Indexer.Core/AppInfo.fs so it matches the release tag.
+# Archives are named eu4indexer-<rid> (version-less): the release tag the assets
+# are attached to is what selects the version, so the installer can resolve both
+# the latest (releases/latest/download/...) and a pinned (releases/download/<tag>/...)
+# install from the same stable asset name.
 #
 # Usage:
 #   ./scripts/build-binaries.sh                          # all six targets
 #   ./scripts/build-binaries.sh linux-x64 osx-arm64      # only the listed RIDs
-#   ./scripts/build-binaries.sh --version 0.2.0          # override version label
 
 set -euo pipefail
 
@@ -30,23 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$REPO_ROOT/dist"
 
-VERSION=""
-RIDS=()
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --version) VERSION="$2"; shift 2 ;;
-    --version=*) VERSION="${1#*=}"; shift ;;
-    *) RIDS+=("$1"); shift ;;
-  esac
-done
+RIDS=("$@")
 if [ ${#RIDS[@]} -eq 0 ]; then RIDS=("${ALL_RIDS[@]}"); fi
-
-if [ -z "$VERSION" ]; then
-  # Default to the single source of truth in AppInfo.fs (let Version = "x.y.z").
-  VERSION="$(sed -nE 's/.*Version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-    "$REPO_ROOT/Eu4Indexer.Core/AppInfo.fs" | head -1)"
-  [ -z "$VERSION" ] && VERSION="$(date +%Y%m%d)"
-fi
 
 mkdir -p "$DIST_DIR"
 
@@ -78,10 +64,10 @@ for rid in "${RIDS[@]}"; do
   cp -R "$REPO_ROOT/skills" "$rid_dir/skills"
 
   # One archive per target, containing bin/ and skills/.
-  base="eu4indexer-$VERSION-$rid"
+  # Version-less name: the release tag the asset is attached to selects the
+  # version, so the same name serves both the latest and pinned install paths.
   if [[ "$rid" == win-* ]]; then
-    ext="zip"
-    archive="$DIST_DIR/$base.$ext"
+    archive="$DIST_DIR/eu4indexer-$rid.zip"
     rm -f "$archive"
     if ! command -v zip >/dev/null 2>&1; then
       echo "error: 'zip' is required to package Windows targets; install it (e.g. apt install zip / brew install zip)" >&2
@@ -89,22 +75,12 @@ for rid in "${RIDS[@]}"; do
     fi
     ( cd "$rid_dir" && zip -qr "$archive" . )
   else
-    ext="tar.gz"
-    archive="$DIST_DIR/$base.$ext"
+    archive="$DIST_DIR/eu4indexer-$rid.tar.gz"
     rm -f "$archive"
     # publish on a Unix host already marked the apphosts executable; tar keeps it.
     tar -czf "$archive" -C "$rid_dir" .
   fi
-
-  # Also publish a version-less copy so the installer's default
-  # 'releases/latest/download/eu4indexer-<rid>.<ext>' redirect resolves without
-  # the script knowing the version. The versioned name stays for pinned installs
-  # (--version) and human-readable release listings.
-  latest="$DIST_DIR/eu4indexer-$rid.$ext"
-  rm -f "$latest"
-  cp "$archive" "$latest"
   echo "    -> $archive"
-  echo "    -> $latest"
 done
 
 echo "Done. Archives in $DIST_DIR"
