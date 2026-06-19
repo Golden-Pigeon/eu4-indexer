@@ -63,9 +63,9 @@ if [ -n "$DIST" ]; then
   fi
 else
   if [ -n "$VERSION" ]; then
-    # Pinned release: the asset name carries the version (eu4indexer-<ver>-<rid>).
-    ver_no_v="${VERSION#v}"
-    url="https://github.com/$REPO/releases/download/$VERSION/eu4indexer-$ver_no_v-$RID.tar.gz"
+    # Pinned release: the tag segment selects the version; the asset name is the
+    # same version-less one used by the latest path.
+    url="https://github.com/$REPO/releases/download/$VERSION/eu4indexer-$RID.tar.gz"
     echo "Downloading eu4indexer $VERSION ($RID)"
   else
     # Default: GitHub's latest-release redirect to the version-less asset, so the
