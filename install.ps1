@@ -95,7 +95,7 @@ try {
     Write-Host ""
     Write-Host "Next:"
     Write-Host "  eu4indexer setup      # download cwtools config rules"
-    Write-Host "  eu4indexer index      # build an index from your EU4 install"
+    Write-Host "  eu4indexer index      # build an index from your local game install (EU4 / HOI4)"
     Write-Host "  eu4indexer install    # register MCP + skill with Claude Code / Codex"
 }
 finally {

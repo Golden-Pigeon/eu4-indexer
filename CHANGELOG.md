@@ -34,6 +34,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
   [f9b5a51](https://github.com/Golden-Pigeon/eu4-indexer/commit/f9b5a51),
   [0f1322d](https://github.com/Golden-Pigeon/eu4-indexer/commit/0f1322d)).
 - Added this `CHANGELOG.md`.
+- Updated `CONTRIBUTING.md`, the Claude Code plugin manifests, and the installer
+  hints to reflect HOI4 support (they still read EU4-only).
 
 ### Chore
 - Bumped the Claude Code plugin manifests to 0.3.0 to match the release

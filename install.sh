@@ -6,7 +6,7 @@
 # Downloads the self-contained eu4indexer binary (no .NET install needed) plus
 # the bundled skill into ~/.eu4indexer and puts `eu4indexer` on PATH. Then:
 #   eu4indexer setup            # download the cwtools config rules
-#   eu4indexer index            # build an index from your local EU4 install
+#   eu4indexer index            # build an index from your local game install (EU4 / HOI4)
 #   eu4indexer install          # register the MCP server + skill with agents
 #
 # Options (env or flags):
@@ -115,5 +115,5 @@ esac
 echo ""
 echo "Next:"
 echo "  eu4indexer setup      # download cwtools config rules"
-echo "  eu4indexer index      # build an index from your EU4 install"
+echo "  eu4indexer index      # build an index from your local game install (EU4 / HOI4)"
 echo "  eu4indexer install    # register MCP + skill with Claude Code / Codex"
