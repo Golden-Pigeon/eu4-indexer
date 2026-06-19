@@ -49,8 +49,8 @@ jobs:
 
           "$EXE" version
           "$EXE" setup
-          "$EXE" index --game-dir Eu4Indexer.Tests/fixtures/example-game --name vanilla
-          "$EXE" index --game-dir Eu4Indexer.Tests/fixtures/example-game --mod Eu4Indexer.Tests/fixtures/example-mod --name withmod
+          "$EXE" index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --name vanilla
+          "$EXE" index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --mod Eu4Indexer.Tests/fixtures/eu4/example-mod --name withmod
           "$EXE" list
           python3 scripts/mcp-smoke.py "$EXE" vanilla
 
@@ -77,7 +77,7 @@ jobs:
 
           & $exe version
           & $exe setup
-          & $exe index --game-dir Eu4Indexer.Tests/fixtures/example-game --name vanilla
-          & $exe index --game-dir Eu4Indexer.Tests/fixtures/example-game --mod Eu4Indexer.Tests/fixtures/example-mod --name withmod
+          & $exe index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --name vanilla
+          & $exe index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --mod Eu4Indexer.Tests/fixtures/eu4/example-mod --name withmod
           & $exe list
           python scripts/mcp-smoke.py $exe vanilla
