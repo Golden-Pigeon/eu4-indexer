@@ -71,12 +71,14 @@ stays green without external data.
   files), but need the CWTools config rules. They **no-op without a config dir**;
   to enable, run `eu4indexer setup` or set `EU4_CONFIG_DIR`. Run just these with:
   `dotnet test --filter "FullyQualifiedName~FixtureIndexTests"`.
-- **Integration tests** (`IntegrationTests`, `PostgresExportTests`) — need real
-  game data and/or a Postgres connection. Gated by `TestPaths`; they no-op when
-  the resource is unset or missing. Enable by copying `.env.example` → `.env`
-  (git-ignored) and filling in: `EU4_GAME_DIR`, `EU4_CONFIG_DIR`,
-  `EU4_EXAMPLE_MOD_DIR`, and optionally `EU4_PG_CONN` (Postgres export test;
-  the role needs `CREATE EXTENSION pg_trgm`). Process env vars take precedence
+- **Integration tests** (`IntegrationTests`, `Hoi4IntegrationTests`,
+  `PostgresExportTests`) — need real game data and/or a Postgres connection. Gated
+  by `TestPaths`; they no-op when the resource is unset or missing. Enable by
+  copying `.env.example` → `.env` (git-ignored) and filling in: `EU4_GAME_DIR`,
+  `EU4_CONFIG_DIR`, `EU4_EXAMPLE_MOD_DIR`, optionally `EU4_PG_CONN` (Postgres
+  export test; the role needs `CREATE EXTENSION pg_trgm`), and `HOI4_GAME_DIR`
+  (+ optional `HOI4_CONFIG_DIR` / `HOI4_EXAMPLE_MOD_DIR`) for the HOI4 integration
+  test. Process env vars take precedence
   over `.env`.
 
 Adding integration assertions that need game data: gate on `TestPaths` and

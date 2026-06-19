@@ -9,6 +9,10 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+### Added
+- HOI4 real-game integration test (`Hoi4IntegrationTests`), the gated analogue of
+  the EU4 `IntegrationTests`; enabled via `HOI4_GAME_DIR` and no-ops without it.
+
 ### Changed
 - Default install now follows GitHub's latest-release redirect instead of a
   hardcoded version tag, so `curl … | sh` always fetches the newest release;

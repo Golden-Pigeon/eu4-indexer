@@ -24,9 +24,17 @@ public static class TestPaths
 
     public static string? FixtureHoi4GameDir => FixtureDir("hoi4", "example-game");
 
-    /// HOI4 config dir, if downloaded by `eu4indexer setup`.
+    /// Real HOI4 install for the HOI4 integration test (analogue of GameDir).
+    public static string? Hoi4GameDir => Resolve("HOI4_GAME_DIR");
+
+    /// Optional HOI4 mod for the override integration test.
+    public static string? Hoi4ExampleModDir => Resolve("HOI4_EXAMPLE_MOD_DIR");
+
+    /// HOI4 config dir: an explicit HOI4_CONFIG_DIR, else the one downloaded by
+    /// `eu4indexer setup` at ~/.eu4indexer/config/hoi4.
     public static string? Hoi4ConfigDir =>
-        ResolveDir(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        Resolve("HOI4_CONFIG_DIR")
+        ?? ResolveDir(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".eu4indexer", "config", "hoi4"));
 
     private static string? ResolveDir(string path) =>
