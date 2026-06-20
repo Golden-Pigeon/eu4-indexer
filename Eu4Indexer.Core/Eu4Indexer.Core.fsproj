@@ -10,6 +10,7 @@
     <Compile Include="AppPaths.fs" />
     <Compile Include="Registry.fs" />
     <Compile Include="Setup.fs" />
+    <Compile Include="Updater.fs" />
     <Compile Include="AgentInstall.fs" />
     <Compile Include="Domain.fs" />
     <Compile Include="GameAdapter.fs" />

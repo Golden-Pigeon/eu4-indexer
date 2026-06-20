@@ -147,6 +147,18 @@ type ListArgs =
             match this with
             | Unused -> ""
 
+type UpdateArgs =
+    | Check
+    | Force
+    | [<Hidden>] Finish_Config
+
+    interface IArgParserTemplate with
+        member this.Usage =
+            match this with
+            | Check -> "only report whether a newer release is available; don't download"
+            | Force -> "reinstall the latest release even if already up to date"
+            | Finish_Config -> ""
+
 type CliArgs =
     | [<CliPrefix(CliPrefix.None)>] Index of ParseResults<IndexArgs>
     | [<CliPrefix(CliPrefix.None)>] Detect of ParseResults<DetectArgs>
@@ -157,6 +169,7 @@ type CliArgs =
     | [<CliPrefix(CliPrefix.None)>] Install of ParseResults<InstallArgs>
     | [<CliPrefix(CliPrefix.None)>] Use of ParseResults<UseArgs>
     | [<CliPrefix(CliPrefix.None)>] List of ParseResults<ListArgs>
+    | [<CliPrefix(CliPrefix.None)>] Update of ParseResults<UpdateArgs>
     | [<CliPrefix(CliPrefix.None)>] Version of ParseResults<VersionArgs>
 
     interface IArgParserTemplate with
@@ -171,6 +184,7 @@ type CliArgs =
             | Install _ -> "register the MCP server + skill with local agents (Claude Code, Codex)"
             | Use _ -> "set the active index (by registry name) the MCP server serves by default"
             | List _ -> "list registered indexes (* marks the active one)"
+            | Update _ -> "self-update the eu4indexer binary to the latest release and refresh stale config"
             | Version _ -> "print the eu4indexer version and exit"
 
 // Config dir resolution: $EU4_CONFIG_DIR, then the game-namespaced install dir
@@ -550,6 +564,77 @@ let private runList (_: ParseResults<ListArgs>) =
 
     ExitOk
 
+// Refresh any installed config whose pinned ref has drifted from this build's.
+// Runs under the (possibly just-swapped) binary, so its compiled refs are the
+// ones compared against what's on disk.
+let private runFinishConfig () =
+    let stale = Setup.allGameIds |> List.filter Setup.isStale
+
+    if stale.IsEmpty then
+        printfn "Config rules are up to date."
+        ExitOk
+    else
+        let results = stale |> List.map (fun g -> g, Setup.fetchConfig g None (eprintfn "%s"))
+        let failures = results |> List.choose (fun (g, r) -> match r with Result.Error e -> Some(g, e) | _ -> None)
+
+        for g, e in failures do
+            eprintfn "warning: failed to refresh %s config: %s" g e
+
+        printfn "Refreshed config for %d/%d game(s)." (results.Length - failures.Length) results.Length
+        if failures.IsEmpty then ExitOk else ExitConfigInvalid
+
+let private runUpdate (args: ParseResults<UpdateArgs>) =
+    if args.Contains Finish_Config then
+        runFinishConfig ()
+    else
+
+    let current = AppInfo.Version
+
+    match Updater.latestVersion () with
+    | Result.Error e ->
+        eprintfn "error: %s" e
+        ExitConfigInvalid
+    | Result.Ok latest ->
+
+    let updateAvailable = Updater.isNewer latest current
+
+    if args.Contains Check then
+        printfn "Current: %s. Latest: %s." current latest
+        printfn "%s" (if updateAvailable then "An update is available. Run 'eu4indexer update'." else "Up to date.")
+        ExitOk
+    elif not updateAvailable && not (args.Contains Force) then
+        printfn "Already up to date (%s)." current
+        ExitOk
+    else
+        printfn "Updating %s -> %s..." current latest
+
+        match Updater.applyBinaryUpdate (eprintfn "%s") with
+        | Result.Error e ->
+            eprintfn "error: %s" e
+            ExitConfigInvalid
+        | Result.Ok Updater.Deferred ->
+            // Windows: the detached helper swaps and relaunches --finish-config.
+            printfn "Binary update staged; it will complete once this process exits."
+            ExitOk
+        | Result.Ok Updater.Applied ->
+            // Unix: binary is swapped in place. Run the new binary to refresh any
+            // config whose pinned ref changed in this release.
+            printfn "Binary updated. Refreshing config rules..."
+            let exe = Path.Combine(AppPaths.binDir (), "eu4indexer")
+
+            try
+                let psi = Diagnostics.ProcessStartInfo(exe)
+                psi.ArgumentList.Add "update"
+                psi.ArgumentList.Add "--finish-config"
+                psi.UseShellExecute <- false
+                use p = Diagnostics.Process.Start psi
+                p.WaitForExit()
+            with ex ->
+                eprintfn "warning: config refresh failed: %s (run 'eu4indexer setup' manually)" ex.Message
+
+            printfn "Update complete."
+            ExitOk
+
 let private runVersion (_: ParseResults<VersionArgs>) =
     printfn "eu4indexer %s" AppInfo.Version
     ExitOk
@@ -575,6 +660,7 @@ let main argv =
         | Install installArgs -> runInstall installArgs
         | Use useArgs -> runUse useArgs
         | List listArgs -> runList listArgs
+        | Update updateArgs -> runUpdate updateArgs
         | Version versionArgs -> runVersion versionArgs
     with
     | :? ArguParseException as ex ->

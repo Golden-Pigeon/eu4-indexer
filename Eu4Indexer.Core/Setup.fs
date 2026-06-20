@@ -33,8 +33,37 @@ module Setup =
 
     let allGameIds = [ "eu4"; "hoi4" ]
 
+    /// Marker file written into a game's config dir recording the ref it was
+    /// installed from, so `update` can tell when the pinned ref has moved on.
+    [<Literal>]
+    let private RefMarker = ".eu4indexer-ref"
+
     let private archiveUrl (cfg: GameConfig) =
         sprintf "https://github.com/%s/archive/%s.zip" cfg.Repo cfg.Ref
+
+    /// The ref the installed config for a game was downloaded from, if recorded.
+    /// Legacy installs predating the marker return None.
+    let installedRef (gameId: string) : string option =
+        let marker = Path.Combine(AppPaths.configDir gameId, RefMarker)
+
+        if File.Exists marker then
+            match (File.ReadAllText marker).Trim() with
+            | "" -> None
+            | r -> Some r
+        else
+            None
+
+    /// True when a game has config installed whose ref differs from the pinned
+    /// ref this build expects. Games with no config installed are not stale (the
+    /// user never set them up); legacy installs without a marker are treated as
+    /// stale so `update` refreshes them once.
+    let isStale (gameId: string) : bool =
+        if not (Directory.Exists(AppPaths.configDir gameId)) then
+            false
+        else
+            match configForGame gameId with
+            | None -> false
+            | Some cfg -> installedRef gameId <> Some cfg.Ref
 
     /// Recursive copy. Used instead of Directory.Move because the temp dir and the
     /// install dir can be on different volumes (e.g. C: vs the work drive on
@@ -86,6 +115,10 @@ module Setup =
                 AppPaths.ensureDir (Directory.GetParent(dest).FullName) |> ignore
                 if Directory.Exists dest then Directory.Delete(dest, true)
                 copyDir inner dest
+
+                // Record the ref so `update` can detect later drift. Written after
+                // the copy so it survives the dest replacement above.
+                File.WriteAllText(Path.Combine(dest, RefMarker), cfg.Ref)
 
                 log (sprintf "Installed %s config to %s" gameId (AppPaths.normalize dest))
                 Ok dest
