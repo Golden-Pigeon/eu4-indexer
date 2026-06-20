@@ -10,6 +10,10 @@ Each entry links its source, preferring (high → low): **pull request**, then
 ## [Unreleased]
 
 ### Added
+- `index --progress` flag: shows a live counter of processed files / entities /
+  loc entries while parsing, then the current finalize sub-step (indexes / FTS /
+  views / integrity / optimize). Refreshes in place on a terminal and falls back
+  to periodic lines when stderr is redirected. Orthogonal to `--verbose`.
 - HOI4 real-game integration test (`Hoi4IntegrationTests`), the gated analogue of
   the EU4 `IntegrationTests`; enabled via `HOI4_GAME_DIR` and no-ops without it.
 

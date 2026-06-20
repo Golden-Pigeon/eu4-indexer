@@ -9,6 +9,21 @@ open Eu4Indexer.Core.Database
 /// overrides -> write SQLite.
 module Pipeline =
 
+    /// A live progress snapshot, distinct from the milestone text on `Log`.
+    /// Two shapes share one channel:
+    ///   - per-file phases ("parsing" | "localisation"): `FilesTotal > 0` and the
+    ///     counters carry meaning;
+    ///   - label-only steps ("finalizing"): `FilesTotal = 0` and `Detail` names the
+    ///     current sub-step (indexes / FTS / …), since the work is opaque bulk SQL
+    ///     with no countable items.
+    type IndexProgress =
+        { Phase: string
+          FilesDone: int
+          FilesTotal: int
+          Entities: int
+          LocEntries: int
+          Detail: string }
+
     /// Index request parameters.
     type IndexRequest =
         { Adapter: GameAdapter
@@ -22,7 +37,17 @@ module Pipeline =
           WithFts: bool
           /// Restrict localisation languages; empty means the adapter's full set.
           Languages: string list
-          Log: string -> unit }
+          Log: string -> unit
+          /// Live per-file progress; defaults to `ignore` for callers that don't care.
+          Progress: IndexProgress -> unit }
+
+    /// Renders a progress snapshot into a single status line. Pure so the CLI
+    /// renderer (throttle + TTY handling) can be tested without a terminal.
+    let formatProgress (p: IndexProgress) : string =
+        if p.FilesTotal > 0 then
+            sprintf "%-13s %d/%d files · %d entities · %d loc" p.Phase p.FilesDone p.FilesTotal p.Entities p.LocEntries
+        else
+            sprintf "%-13s %s..." p.Phase p.Detail
 
     type IndexReport =
         { SourceCount: int
@@ -161,7 +186,8 @@ module Pipeline =
         let scriptedEffects = System.Collections.Generic.HashSet<string>()
 
         writer.InTransaction(fun () ->
-            for file in scriptFiles do
+            scriptFiles
+            |> List.iteri (fun i file ->
                 match Parsing.parseFile file.AbsolutePath with
                 | Result.Error err ->
                     parseErrors <-
@@ -197,7 +223,15 @@ module Pipeline =
                         match p.Entity.EntityType with
                         | "scripted_trigger" -> scriptedTriggers.Add p.Entity.EntityKey |> ignore
                         | "scripted_effect" -> scriptedEffects.Add p.Entity.EntityKey |> ignore
-                        | _ -> ())
+                        | _ -> ()
+
+                request.Progress
+                    { Phase = "parsing"
+                      FilesDone = i + 1
+                      FilesTotal = scriptFiles.Length
+                      Entities = entitiesRev.Length
+                      LocEntries = 0
+                      Detail = "" }))
 
         let entities = List.rev entitiesRev
         let entityCount = entities.Length
@@ -320,24 +354,34 @@ module Pipeline =
         // written only now so it never coexists with the script payloads.
         log "Parsing localisation..."
 
-        let locRows =
-            locFiles
-            |> List.collect (fun file ->
-                match adapter.LocFileLanguage file.RelativePath with
-                | None -> []
-                | Some lang ->
-                    match Localisation.parseFile nextLocId file lang with
-                    | Result.Ok rows -> rows
-                    | Result.Error err ->
-                        parseErrors <-
-                            { FileId = file.FileId
-                              Message = err.Message
-                              Line = err.Line
-                              Col = err.Col }
-                            :: parseErrors
+        let locRowsAcc = ResizeArray<LocRow>()
 
-                        failedFileIds <- Set.add file.FileId failedFileIds
-                        [])
+        locFiles
+        |> List.iteri (fun i file ->
+            match adapter.LocFileLanguage file.RelativePath with
+            | None -> ()
+            | Some lang ->
+                match Localisation.parseFile nextLocId file lang with
+                | Result.Ok rows -> locRowsAcc.AddRange rows
+                | Result.Error err ->
+                    parseErrors <-
+                        { FileId = file.FileId
+                          Message = err.Message
+                          Line = err.Line
+                          Col = err.Col }
+                        :: parseErrors
+
+                    failedFileIds <- Set.add file.FileId failedFileIds
+
+            request.Progress
+                { Phase = "localisation"
+                  FilesDone = i + 1
+                  FilesTotal = locFiles.Length
+                  Entities = entityCount
+                  LocEntries = locRowsAcc.Count
+                  Detail = "" })
+
+        let locRows = List.ofSeq locRowsAcc
 
         let locRes =
             OverrideResolution.resolveLocalisation fileById loadOrderOf fileOverrideKindByLoser locRows
@@ -373,7 +417,19 @@ module Pipeline =
               "created_utc", System.DateTime.UtcNow.ToString("o") ]
 
         log "Building indexes and FTS..."
-        let violations = writer.Finalize(meta, request.WithFts)
+
+        // Finalize runs opaque bulk SQL (no countable items), so report each
+        // sub-step as a label rather than an x/y counter.
+        let reportStep (step: string) =
+            request.Progress
+                { Phase = "finalizing"
+                  FilesDone = 0
+                  FilesTotal = 0
+                  Entities = entityCount
+                  LocEntries = locCount
+                  Detail = step }
+
+        let violations = writer.Finalize(meta, request.WithFts, reportStep)
 
         Result.Ok
             { SourceCount = sources.Length
@@ -420,4 +476,5 @@ module Pipeline =
               SkipGeneric = skipGeneric
               WithFts = withFts
               Languages = languages
-              Log = log }
+              Log = log
+              Progress = ignore }

@@ -31,6 +31,7 @@ type IndexArgs =
     | Skip_Generic
     | No_Fts
     | Verbose
+    | Progress
     | Game of game_id: string
 
     interface IArgParserTemplate with
@@ -51,6 +52,7 @@ type IndexArgs =
             | Skip_Generic -> "index only events/missions/decisions/modifiers"
             | No_Fts -> "skip building full-text search tables"
             | Verbose -> "print per-stage progress"
+            | Progress -> "show a live counter of files / entities / loc entries"
             | Game _ -> "game id (default: eu4); supported: eu4, hoi4"
 
 type DetectArgs =
@@ -263,7 +265,33 @@ let private runIndex (args: ParseResults<IndexArgs>) =
     let adapter = resolveAdapter (args.TryGetResult IndexArgs.Game)
     let probe = Discovery.realProbe
     let verbose = args.Contains Verbose
-    let log (msg: string) = if verbose then eprintfn "%s" msg
+    let showProgress = args.Contains IndexArgs.Progress
+    // In-place line refresh only makes sense on a real terminal; when stderr is
+    // redirected (pipe / CI), fall back to periodic full lines.
+    let progressInteractive = showProgress && not System.Console.IsErrorRedirected
+
+    // A milestone line must clear the in-place status line before printing, or it
+    // overwrites a partial frame.
+    let log (msg: string) =
+        if verbose then
+            if progressInteractive then eprintf "\r\027[K"
+            eprintfn "%s" msg
+
+    let progressSw = System.Diagnostics.Stopwatch.StartNew()
+    let mutable lastProgressKey = ""
+
+    let renderProgress (p: Pipeline.IndexProgress) =
+        // Force a draw on phase/sub-step change or at end of a per-file phase, so
+        // the finalize labels (which share one phase) and the final frame aren't
+        // swallowed by the throttle.
+        let key = p.Phase + "/" + p.Detail
+        let phaseEnd = p.FilesTotal > 0 && p.FilesDone >= p.FilesTotal
+
+        if key <> lastProgressKey || phaseEnd || progressSw.ElapsedMilliseconds >= 100L then
+            progressSw.Restart()
+            lastProgressKey <- key
+            let line = Pipeline.formatProgress p
+            if progressInteractive then eprintf "\r\027[K%s" line else eprintfn "%s" line
 
     let configDir =
         match args.TryGetResult Config_Dir |> Option.orElse (defaultConfigDir adapter.GameId) with
@@ -318,9 +346,14 @@ let private runIndex (args: ParseResults<IndexArgs>) =
           SkipGeneric = args.Contains Skip_Generic
           WithFts = not (args.Contains No_Fts)
           Languages = languages
-          Log = log }
+          Log = log
+          Progress = if showProgress then renderProgress else ignore }
 
-    match Pipeline.run request with
+    let result = Pipeline.run request
+    // Finish the in-place status line so the summary starts on its own line.
+    if progressInteractive then eprintfn ""
+
+    match result with
     | Result.Error e ->
         eprintfn "error: %s" e
         ExitConfigInvalid

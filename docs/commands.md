@@ -77,6 +77,7 @@ Parse the game + mods and write the index.
 | `--skip-generic` | index only events/missions/decisions/modifiers |
 | `--no-fts` | skip building full-text search tables |
 | `--verbose` | print per-stage progress |
+| `--progress` | show live progress: a counter of processed files / entities / loc entries while parsing, then the current finalize sub-step (indexes / FTS / views / integrity / optimize). Refreshes in place on a terminal; falls back to periodic lines when stderr is redirected |
 | `--game` | game id (default: `eu4`; supported: `eu4`, `hoi4`) |
 
 SQLite indexes are recorded in a registry so `serve`/`use`/`list` and the MCP

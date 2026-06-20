@@ -35,7 +35,7 @@ type IIndexWriter =
     /// entity with (entityId, entityType, nodes). Lets references be derived
     /// without holding all script nodes in memory.
     abstract IterEntityNodesForRefs: (int64 -> string -> RefNode list -> unit) -> unit
-    abstract Finalize: (string * string) list * bool -> int
+    abstract Finalize: (string * string) list * bool * (string -> unit) -> int
 
 /// Single-writer bulk loader over an open ADO.NET connection. Inserts with
 /// prepared statements inside caller-scoped transactions, and applies
@@ -440,12 +440,15 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
 
     /// Build indexes, optional search, views; record metadata; restore
     /// durability. Returns the referential-integrity violation count.
-    member this.Finalize(meta: (string * string) list, withFts: bool) =
+    member this.Finalize(meta: (string * string) list, withFts: bool, onStep: string -> unit) =
+        onStep "indexes"
         exec dialect.IndexesSql
 
         if withFts then
+            onStep "FTS"
             exec dialect.SearchSql
 
+        onStep "views"
         exec dialect.ViewsSql
 
         this.InTransaction(fun () ->
@@ -454,7 +457,10 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
             for key, value in meta do
                 bind cmd [ box key; box value ])
 
+        onStep "integrity"
         let violations = dialect.VerifyIntegrity connection
+
+        onStep "optimize"
 
         for s in dialect.FinalizeSql do
             exec s
@@ -480,7 +486,7 @@ type internal RelationalWriter(connection: DbConnection, dialect: Dialect) =
         member this.InsertLocOverride ov = this.InsertLocOverride ov
         member this.ReadOptionNodeIds() = this.ReadOptionNodeIds()
         member this.IterEntityNodesForRefs handle = this.IterEntityNodesForRefs handle
-        member this.Finalize(meta, withFts) = this.Finalize(meta, withFts)
+        member this.Finalize(meta, withFts, onStep) = this.Finalize(meta, withFts, onStep)
 
     interface IDisposable with
         member _.Dispose() =
