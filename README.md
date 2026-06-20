@@ -134,6 +134,10 @@ Indexes default to `~/.eu4indexer/db/<game>/<name>.db` and are tracked in a
 registry: `eu4indexer list` shows them and `eu4indexer use <name>` sets the
 active one.
 
+Keep a script install current with `eu4indexer update` — it self-updates the
+binary to the latest release and refreshes any stale config rules
+(`eu4indexer update --check` just compares versions).
+
 ### Querying with an agent (skill)
 
 `eu4indexer install` writes a user-scoped MCP server pointing at the installed

@@ -278,6 +278,43 @@ Print the `eu4indexer` version and exit.
 
 ---
 
+## `update`
+
+Self-update the installed binary to the latest GitHub release, then refresh any
+CWTools config rules whose pinned ref has moved on in the new build. Brings both
+the binary and the config rules current in one step.
+
+| Flag | Description |
+|---|---|
+| `--check` | only report whether a newer release is available; don't download |
+| `--force` | reinstall the latest release even if already up to date |
+
+```bash
+eu4indexer update            # update if a newer release exists, then refresh config
+eu4indexer update --check    # just compare current vs latest
+eu4indexer update --force    # reinstall the latest binary
+```
+
+How it works:
+
+- Resolves the latest release via GitHub's `releases/latest` redirect (no API
+  token, no rate limit) and compares it to the running version.
+- Downloads the version-less `eu4indexer-<rid>` archive for the host and replaces
+  the installed `bin/` and `skills/` atomically. On Unix the live binary is
+  swapped in place; on **Windows** a detached helper waits for the process to
+  exit, swaps the directories, and relaunches the config refresh (a running
+  `.exe` and its loaded DLLs can't be overwritten in place).
+- After the swap, the **new** binary refreshes config for any game whose
+  installed ref differs from the one it pins (recorded in a `.eu4indexer-ref`
+  marker; pre-marker installs are refreshed once).
+
+`update` only works for script installs (`install.sh` / `install.ps1`). Run from
+a source checkout (`dotnet run`, `bin/Debug/...`) it refuses the swap — update via
+git instead. Offline or pinned installs (`EU4INDEXER_DIST`) have no release source;
+use `--check` to compare versions only.
+
+---
+
 ## Manual MCP registration
 
 To register with another MCP client, point it at the installed binary:
