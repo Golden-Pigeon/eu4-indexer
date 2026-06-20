@@ -96,6 +96,9 @@ offline mode → setup → index → serve), on all three platforms.
     bullet under `## [Unreleased]` in **`CHANGELOG.md`**, with a source link,
     preferring (high → low) **PR → issue → commit hash**. This is required, not
     optional — `CHANGELOG.md` must never lag the user-facing changes on `main`.
+    Once the PR exists, **backfill the bullet's link to the PR, commit it on the
+    branch, and only then merge** — so what lands on `main` already carries the
+    final PR link instead of a placeholder commit hash or bare text.
   - CLI commands / flags / output → `docs/commands.md`, the README usage section,
     and the relevant `skills/eu4-indexer/<game>/<lang>/SKILL.md` if the tool/MCP
     surface changed.
