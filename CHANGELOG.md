@@ -14,7 +14,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
   release (atomic `bin/` + `skills/` swap; Unix in place, Windows via a deferred
   helper since a running `.exe` can't be overwritten), then refreshes any config
   whose pinned ref drifted. `--check` reports availability without downloading,
-  `--force` reinstalls the latest. Refuses to run from a source/dev build.
+  `--force` reinstalls the latest. Refuses to run from a source/dev build
+  ([#4](https://github.com/Golden-Pigeon/eu4-indexer/pull/4)).
 - `index --progress` flag: shows a live counter of processed files / entities /
   loc entries while parsing, then the current finalize sub-step (indexes / FTS /
   views / integrity / optimize). Refreshes in place on a terminal and falls back
