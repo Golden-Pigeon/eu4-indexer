@@ -16,6 +16,7 @@
     <Compile Include="GameAdapter.fs" />
     <Compile Include="ModDescriptor.fs" />
     <Compile Include="Launcher.fs" />
+    <Compile Include="IndexInputs.fs" />
     <Compile Include="Discovery.fs" />
     <Compile Include="ConfigCatalog.fs" />
     <Compile Include="FileResolution.fs" />

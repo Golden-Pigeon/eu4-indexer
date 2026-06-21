@@ -159,8 +159,21 @@ type UpdateArgs =
             | Force -> "reinstall the latest release even if already up to date"
             | Finish_Config -> ""
 
+type RefreshArgs =
+    | [<AltCommandLine("-n")>] Name of name: string
+    | Verbose
+    | Progress
+
+    interface IArgParserTemplate with
+        member this.Usage =
+            match this with
+            | Name _ -> "registry name of the index to re-index (default: refresh every registered index)"
+            | Verbose -> "print per-stage progress"
+            | Progress -> "show a live counter of files / entities / loc entries"
+
 type CliArgs =
     | [<CliPrefix(CliPrefix.None)>] Index of ParseResults<IndexArgs>
+    | [<CliPrefix(CliPrefix.None)>] Refresh of ParseResults<RefreshArgs>
     | [<CliPrefix(CliPrefix.None)>] Detect of ParseResults<DetectArgs>
     | [<CliPrefix(CliPrefix.None)>] Workshop of ParseResults<WorkshopArgs>
     | [<CliPrefix(CliPrefix.None)>] Playset of ParseResults<PlaysetArgs>
@@ -176,6 +189,7 @@ type CliArgs =
         member this.Usage =
             match this with
             | Index _ -> "parse game + mods and write the SQLite index"
+            | Refresh _ -> "re-index registered databases in place (after a game or mod update)"
             | Detect _ -> "show resolved game dir, mods, and predicted file overrides"
             | Workshop _ -> "list installed Steam Workshop items (id and mod name)"
             | Playset _ -> "list launcher playsets, or the mods of one playset"
@@ -184,7 +198,7 @@ type CliArgs =
             | Install _ -> "register the MCP server + skill with local agents (Claude Code, Codex)"
             | Use _ -> "set the active index (by registry name) the MCP server serves by default"
             | List _ -> "list registered indexes (* marks the active one)"
-            | Update _ -> "self-update the eu4indexer binary to the latest release and refresh stale config"
+            | Update _ -> "self-update the eu4indexer binary to the latest release and update stale config"
             | Version _ -> "print the eu4indexer version and exit"
 
 // Config dir resolution: $EU4_CONFIG_DIR, then the game-namespaced install dir
@@ -275,11 +289,28 @@ let private runDetect (args: ParseResults<DetectArgs>) =
 
         ExitOk
 
-let private runIndex (args: ParseResults<IndexArgs>) =
-    let adapter = resolveAdapter (args.TryGetResult IndexArgs.Game)
-    let probe = Discovery.realProbe
-    let verbose = args.Contains Verbose
-    let showProgress = args.Contains IndexArgs.Progress
+// Shared indexing core: run the pipeline for an already-resolved set of inputs,
+// render progress, print the summary, and register the SQLite result. Used by
+// both `index` (inputs parsed from the CLI) and `refresh` (inputs replayed from
+// a previously-built index's meta).
+let private runIndexCore
+    (adapter: GameAdapter)
+    (verbose: bool)
+    (showProgress: bool)
+    (gameDir: string)
+    (mods: Discovery.DiscoveredMod list)
+    (configDir: string)
+    (dbPath: string)
+    (dbName: string)
+    (skipGeneric: bool)
+    (withFts: bool)
+    (languages: string list)
+    // `index` marks the result active; `refresh` re-indexes in place and leaves
+    // the active selection untouched (false), so a batch refresh doesn't flip it.
+    (setActive: bool)
+    (extraMeta: (string * string) list)
+    : int =
+
     // In-place line refresh only makes sense on a real terminal; when stderr is
     // redirected (pipe / CI), fall back to periodic full lines.
     let progressInteractive = showProgress && not System.Console.IsErrorRedirected
@@ -307,61 +338,18 @@ let private runIndex (args: ParseResults<IndexArgs>) =
             let line = Pipeline.formatProgress p
             if progressInteractive then eprintf "\r\027[K%s" line else eprintfn "%s" line
 
-    let configDir =
-        match args.TryGetResult Config_Dir |> Option.orElse (defaultConfigDir adapter.GameId) with
-        | Some dir -> dir
-        | None -> ""
-
-    if configDir = "" || not (Directory.Exists configDir) then
-        eprintfn "config dir not found; pass --config-dir, set EU4_CONFIG_DIR, or run 'eu4indexer setup'%s"
-            (if adapter.GameId <> "eu4" then sprintf " --game %s" adapter.GameId else "")
-        ExitConfigInvalid
-    else
-
-    // Registry name and resolved output target. Without --db, default to the
-    // game-namespaced install dir and register the result as the active index.
-    let dbName = args.TryGetResult IndexArgs.Name |> Option.defaultValue "default"
-
-    let dbPath =
-        match args.TryGetResult IndexArgs.Db with
-        | Some target -> target
-        | None ->
-            let dir = AppPaths.ensureDir (AppPaths.dbDir adapter.GameId)
-            Path.Combine(dir, dbName + ".db")
-
-    match Discovery.resolveGameDir adapter probe (args.TryGetResult IndexArgs.Game_Dir) with
-    | Result.Error e ->
-        eprintfn "game dir: %s" e
-        ExitGameNotFound
-    | Result.Ok gameDir ->
-
-    let mods, warnings =
-        resolveMods
-            probe
-            (args.GetResults IndexArgs.Mod)
-            (args.GetResults IndexArgs.Workshop_Id)
-            (args.TryGetResult IndexArgs.Playset)
-            (args.Contains IndexArgs.Auto_Mods)
-            adapter
-
-    warnings |> List.iter (eprintfn "warning: %s")
-
-    let languages =
-        match args.TryGetResult Languages with
-        | Some s -> s.Split(',') |> Array.map (fun x -> x.Trim().ToLowerInvariant()) |> Array.filter ((<>) "") |> List.ofArray
-        | None -> []
-
     let request: Pipeline.IndexRequest =
         { Adapter = adapter
           GameDir = gameDir
           Mods = mods
           ConfigDir = configDir
           DbPath = dbPath
-          SkipGeneric = args.Contains Skip_Generic
-          WithFts = not (args.Contains No_Fts)
+          SkipGeneric = skipGeneric
+          WithFts = withFts
           Languages = languages
           Log = log
-          Progress = if showProgress then renderProgress else ignore }
+          Progress = if showProgress then renderProgress else ignore
+          ExtraMeta = extraMeta }
 
     let result = Pipeline.run request
     // Finish the in-place status line so the summary starts on its own line.
@@ -388,10 +376,177 @@ let private runIndex (args: ParseResults<IndexArgs>) =
                   Sources = report.SourceCount
                   IndexedAt = DateTime.UtcNow.ToString("o") }
 
-            Registry.upsert entry true
-            printfn "Registered index '%s' (active) at %s" dbName (AppPaths.normalize (Path.GetFullPath dbPath))
+            Registry.upsert entry setActive
+            let activeNote = if setActive then " (active)" else ""
+            printfn "Registered index '%s'%s at %s" dbName activeNote (AppPaths.normalize (Path.GetFullPath dbPath))
 
         if report.ForeignKeyViolations > 0 then 4 else ExitOk
+
+let private runIndex (args: ParseResults<IndexArgs>) =
+    let adapter = resolveAdapter (args.TryGetResult IndexArgs.Game)
+    let probe = Discovery.realProbe
+    let verbose = args.Contains IndexArgs.Verbose
+    let showProgress = args.Contains IndexArgs.Progress
+
+    let configDir =
+        match args.TryGetResult Config_Dir |> Option.orElse (defaultConfigDir adapter.GameId) with
+        | Some dir -> dir
+        | None -> ""
+
+    if configDir = "" || not (Directory.Exists configDir) then
+        eprintfn "config dir not found; pass --config-dir, set EU4_CONFIG_DIR, or run 'eu4indexer setup'%s"
+            (if adapter.GameId <> "eu4" then sprintf " --game %s" adapter.GameId else "")
+        ExitConfigInvalid
+    else
+
+    // Registry name and resolved output target. Without --db, default to the
+    // game-namespaced install dir and register the result as the active index.
+    let dbName = args.TryGetResult IndexArgs.Name |> Option.defaultValue "default"
+
+    let dbPath =
+        match args.TryGetResult IndexArgs.Db with
+        | Some target -> target
+        | None ->
+            let dir = AppPaths.ensureDir (AppPaths.dbDir adapter.GameId)
+            Path.Combine(dir, dbName + ".db")
+
+    // The explicit game-dir arg is recorded as-is; when absent, refresh later
+    // re-auto-detects so a relocated game install still resolves.
+    let explicitGameDir = args.TryGetResult IndexArgs.Game_Dir
+
+    match Discovery.resolveGameDir adapter probe explicitGameDir with
+    | Result.Error e ->
+        eprintfn "game dir: %s" e
+        ExitGameNotFound
+    | Result.Ok gameDir ->
+
+    let explicitMods = args.GetResults IndexArgs.Mod
+    let workshopIds = args.GetResults IndexArgs.Workshop_Id
+    let playset = args.TryGetResult IndexArgs.Playset
+    let auto = args.Contains IndexArgs.Auto_Mods
+
+    let mods, warnings = resolveMods probe explicitMods workshopIds playset auto adapter
+    warnings |> List.iter (eprintfn "warning: %s")
+
+    let languages =
+        match args.TryGetResult Languages with
+        | Some s -> s.Split(',') |> Array.map (fun x -> x.Trim().ToLowerInvariant()) |> Array.filter ((<>) "") |> List.ofArray
+        | None -> []
+
+    // Persist the original source selection so `refresh` can replay it.
+    let extraMeta = IndexInputs.toExtraMeta explicitGameDir explicitMods workshopIds playset auto
+
+    runIndexCore
+        adapter
+        verbose
+        showProgress
+        gameDir
+        mods
+        configDir
+        dbPath
+        dbName
+        (args.Contains Skip_Generic)
+        (not (args.Contains No_Fts))
+        languages
+        true
+        extraMeta
+
+// Re-index one registered database (or all) in place. Each index's original
+// source selection was persisted to its meta at `index` time, so we replay it
+// through the same resolvers: workshop ids are re-located, a playset is
+// re-expanded (new mod list / order / enabled state), and auto-discovery re-runs
+// — so a game or mod update, or a relocated install, is picked up automatically.
+let private runRefresh (args: ParseResults<RefreshArgs>) =
+    let verbose = args.Contains RefreshArgs.Verbose
+    let showProgress = args.Contains RefreshArgs.Progress
+    let probe = Discovery.realProbe
+    let config = Registry.load ()
+
+    // Target set: the named index, or every registered (SQLite) index. Postgres
+    // targets aren't registered, so they are never refreshed here.
+    let targets =
+        match args.TryGetResult RefreshArgs.Name with
+        | Some name ->
+            match Registry.findByName name config with
+            | Some e -> Result.Ok [ e ]
+            | None -> Result.Error name
+        | None -> Result.Ok(List.ofArray config.Databases)
+
+    match targets with
+    | Result.Error name ->
+        eprintfn "no registered index named '%s' (see 'eu4indexer list')" name
+        ExitUsage
+    | Result.Ok [] ->
+        printfn "No indexes registered. Build one with 'eu4indexer index'."
+        ExitOk
+    | Result.Ok entries ->
+        // Refresh each in turn; one failure is reported and skipped, not fatal.
+        let refreshOne (e: Registry.DbEntry) : Result<unit, string> =
+            if not (File.Exists e.Path) then
+                Result.Error(sprintf "database file missing: %s" e.Path)
+            else
+
+            let inputs = IndexInputs.read e.Path
+            let adapter = resolveAdapter (Some inputs.GameId)
+
+            // Prefer the recorded config dir; fall back to the install default if
+            // it moved or was wiped.
+            let configDir =
+                if inputs.ConfigDir <> "" && Directory.Exists inputs.ConfigDir then
+                    inputs.ConfigDir
+                else
+                    defaultConfigDir adapter.GameId |> Option.defaultValue ""
+
+            if configDir = "" || not (Directory.Exists configDir) then
+                Result.Error(sprintf "config dir not found (was '%s'); run 'eu4indexer setup'" inputs.ConfigDir)
+            else
+
+            match Discovery.resolveGameDir adapter probe inputs.ExplicitGameDir with
+            | Result.Error ge -> Result.Error(sprintf "game dir: %s" ge)
+            | Result.Ok gameDir ->
+                let mods, warnings =
+                    resolveMods probe inputs.ExplicitMods inputs.WorkshopIds inputs.Playset inputs.AutoMods adapter
+
+                warnings |> List.iter (eprintfn "warning: %s")
+
+                let extraMeta =
+                    IndexInputs.toExtraMeta
+                        inputs.ExplicitGameDir
+                        inputs.ExplicitMods
+                        inputs.WorkshopIds
+                        inputs.Playset
+                        inputs.AutoMods
+
+                printfn "Refreshing '%s' (%s)..." e.Name e.Game
+
+                let code =
+                    runIndexCore
+                        adapter
+                        verbose
+                        showProgress
+                        gameDir
+                        mods
+                        configDir
+                        e.Path
+                        e.Name
+                        inputs.SkipGeneric
+                        inputs.WithFts
+                        inputs.Languages
+                        false
+                        extraMeta
+
+                // 0 = clean, 4 = built with FK violations (already warned). Both
+                // mean the database was rebuilt; anything else is a real failure.
+                if code = ExitOk || code = 4 then Result.Ok() else Result.Error "indexing failed"
+
+        let results = entries |> List.map (fun e -> e.Name, refreshOne e)
+        let failures = results |> List.choose (fun (n, r) -> match r with Result.Error m -> Some(n, m) | _ -> None)
+
+        for n, m in failures do
+            eprintfn "warning: refresh '%s' failed: %s" n m
+
+        printfn "Refreshed %d/%d index(es)." (results.Length - failures.Length) results.Length
+        if failures.IsEmpty then ExitOk else ExitConfigInvalid
 
 let private runWorkshop (args: ParseResults<WorkshopArgs>) =
     let adapter = resolveAdapter (args.TryGetResult WorkshopArgs.Game)
@@ -564,7 +719,7 @@ let private runList (_: ParseResults<ListArgs>) =
 
     ExitOk
 
-// Refresh any installed config whose pinned ref has drifted from this build's.
+// Update any installed config whose pinned ref has drifted from this build's.
 // Runs under the (possibly just-swapped) binary, so its compiled refs are the
 // ones compared against what's on disk.
 let private runFinishConfig () =
@@ -578,9 +733,9 @@ let private runFinishConfig () =
         let failures = results |> List.choose (fun (g, r) -> match r with Result.Error e -> Some(g, e) | _ -> None)
 
         for g, e in failures do
-            eprintfn "warning: failed to refresh %s config: %s" g e
+            eprintfn "warning: failed to update %s config: %s" g e
 
-        printfn "Refreshed config for %d/%d game(s)." (results.Length - failures.Length) results.Length
+        printfn "Updated config for %d/%d game(s)." (results.Length - failures.Length) results.Length
         if failures.IsEmpty then ExitOk else ExitConfigInvalid
 
 let private runUpdate (args: ParseResults<UpdateArgs>) =
@@ -617,9 +772,9 @@ let private runUpdate (args: ParseResults<UpdateArgs>) =
             printfn "Binary update staged; it will complete once this process exits."
             ExitOk
         | Result.Ok Updater.Applied ->
-            // Unix: binary is swapped in place. Run the new binary to refresh any
+            // Unix: binary is swapped in place. Run the new binary to update any
             // config whose pinned ref changed in this release.
-            printfn "Binary updated. Refreshing config rules..."
+            printfn "Binary updated. Updating config rules..."
             let exe = Path.Combine(AppPaths.binDir (), "eu4indexer")
 
             try
@@ -630,7 +785,7 @@ let private runUpdate (args: ParseResults<UpdateArgs>) =
                 use p = Diagnostics.Process.Start psi
                 p.WaitForExit()
             with ex ->
-                eprintfn "warning: config refresh failed: %s (run 'eu4indexer setup' manually)" ex.Message
+                eprintfn "warning: config update failed: %s (run 'eu4indexer setup' manually)" ex.Message
 
             printfn "Update complete."
             ExitOk
@@ -652,6 +807,7 @@ let main argv =
 
         match results.GetSubCommand() with
         | Index indexArgs -> runIndex indexArgs
+        | Refresh refreshArgs -> runRefresh refreshArgs
         | Detect detectArgs -> runDetect detectArgs
         | Workshop workshopArgs -> runWorkshop workshopArgs
         | Playset playsetArgs -> runPlayset playsetArgs

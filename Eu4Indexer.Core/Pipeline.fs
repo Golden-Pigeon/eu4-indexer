@@ -39,7 +39,13 @@ module Pipeline =
           Languages: string list
           Log: string -> unit
           /// Live per-file progress; defaults to `ignore` for callers that don't care.
-          Progress: IndexProgress -> unit }
+          Progress: IndexProgress -> unit
+          /// Extra meta key/value rows persisted verbatim alongside the built-in
+          /// meta. The CLI uses these to record the original source selection
+          /// (game-dir / mods / workshop ids / playset / auto-mods) so `refresh`
+          /// can replay the same invocation. Keep the core game-agnostic: it does
+          /// not interpret these, only stores them.
+          ExtraMeta: (string * string) list }
 
     /// Renders a progress snapshot into a single status line. Pure so the CLI
     /// renderer (throttle + TTY handling) can be tested without a terminal.
@@ -414,7 +420,10 @@ module Pipeline =
               "game_id", adapter.GameId
               "config_repo_path", request.ConfigDir
               "languages", String.concat "," languages
+              "skip_generic", (if request.SkipGeneric then "1" else "0")
+              "with_fts", (if request.WithFts then "1" else "0")
               "created_utc", System.DateTime.UtcNow.ToString("o") ]
+            @ request.ExtraMeta
 
         log "Building indexes and FTS..."
 
@@ -477,4 +486,5 @@ module Pipeline =
               WithFts = withFts
               Languages = languages
               Log = log
-              Progress = ignore }
+              Progress = ignore
+              ExtraMeta = [] }

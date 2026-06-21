@@ -124,6 +124,46 @@ BI / `pgvector` use. See [database.md](database.md#postgresql-export) for detail
 
 ---
 
+## `refresh`
+
+Re-index a registered database in place — use it after a game or mod update so
+the index reflects the new content.
+
+| Flag | Description |
+|---|---|
+| `--name`, `-n` | registry name of the index to re-index (default: refresh **every** registered index) |
+| `--verbose` | print per-stage progress |
+| `--progress` | show a live counter of processed files / entities / loc entries (same as `index`) |
+
+`refresh` needs no source flags: each index records its original `index`
+invocation (game dir, mods, workshop ids, playset, auto-discovery, languages,
+`--skip-generic` / `--no-fts`) in its `meta`, and replays it through the same
+resolvers. So:
+
+- **Workshop mods** (`--workshop-id`) are re-located by id — a moved Steam
+  library or updated item is found again.
+- **A playset** (`--playset`) is re-expanded — you get its current mod list,
+  load order, and enabled/disabled state.
+- **Auto-discovery** (`--auto-mods`) re-runs against the current launcher state.
+- The base game dir is re-detected when it was auto-detected originally, so a
+  relocated install still resolves.
+
+When refreshing all indexes, a single failure (e.g. a deleted game dir) is
+reported as a warning and skipped; the rest still refresh, and the command exits
+non-zero if any failed. The active index selection is left unchanged. Only
+SQLite indexes are registered, so Postgres exports are not refreshed here —
+re-run `index` with the connection string for those.
+
+```bash
+# Re-index every registered database after a patch
+eu4indexer refresh
+
+# Re-index just one, with progress
+eu4indexer refresh --name my-playset --progress
+```
+
+---
+
 ## `detect`
 
 Show the resolved game dir, mods (in load order), and predicted file overrides —

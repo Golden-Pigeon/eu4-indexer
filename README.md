@@ -105,6 +105,7 @@ USAGE: eu4indexer [--help] <subcommand> [<args>]
 
 SUBCOMMANDS:
     index       parse game + mods and write the index
+    refresh     re-index registered databases in place (after a game/mod update)
     detect      show resolved game dir, mods, and predicted file overrides
     workshop    list installed Steam Workshop items (id and mod name)
     playset     list launcher playsets, or the mods of one playset
@@ -135,8 +136,13 @@ registry: `eu4indexer list` shows them and `eu4indexer use <name>` sets the
 active one.
 
 Keep a script install current with `eu4indexer update` — it self-updates the
-binary to the latest release and refreshes any stale config rules
+binary to the latest release and updates any stale config rules
 (`eu4indexer update --check` just compares versions).
+
+After a game or mod patch, re-index in place with `eu4indexer refresh` (all
+registered indexes) or `eu4indexer refresh --name <name>` (one); it replays each
+index's original mod selection, so workshop and playset mods are re-resolved
+automatically.
 
 ### Querying with an agent (skill)
 
