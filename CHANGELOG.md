@@ -10,6 +10,15 @@ Each entry links its source, preferring (high → low): **pull request**, then
 ## [Unreleased]
 
 ### Added
+- `refresh` command: re-indexes a registered database in place after a game or
+  mod update. `refresh --name <n>` refreshes one index; with no `--name` it
+  refreshes every registered (SQLite) index. The original source selection is
+  read back from the index's `meta`, so workshop mods are re-located by id, a
+  playset is re-expanded (new mod list / order / enabled state), and
+  auto-discovery re-runs — a relocated game or mod install is picked up
+  automatically. A failed index is reported and skipped, not fatal; the active
+  selection is left untouched. `--verbose` / `--progress` mirror `index`
+  ([#5](https://github.com/Golden-Pigeon/eu4-indexer/pull/5)).
 - `update` command: self-updates the installed binary to the latest GitHub
   release (atomic `bin/` + `skills/` swap; Unix in place, Windows via a deferred
   helper since a running `.exe` can't be overwritten), then refreshes any config
