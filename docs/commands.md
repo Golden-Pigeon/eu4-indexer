@@ -10,15 +10,17 @@ Run any command with `--help` to see its flags. From a source checkout, replace
 USAGE: eu4indexer [--help] <subcommand> [<args>]
 
 SUBCOMMANDS:
-    index       parse game + mods and write the index
+    index       parse game + mods and write the SQLite index
+    refresh     re-index registered databases in place (after a game or mod update)
     detect      show resolved game dir, mods, and predicted file overrides
     workshop    list installed Steam Workshop items (id and mod name)
     playset     list launcher playsets, or the mods of one playset
     serve       run the read-only MCP server over stdio
-    setup       download the cwtools config rules for the game
-    install     register the MCP server + skill with local agents
-    use         set the active index the MCP server serves by default
+    setup       download the cwtools config rules for the game into ~/.eu4indexer/config/<game>
+    install     register the MCP server + skill with local agents (Claude Code, Codex)
+    use         set the active index (by registry name) the MCP server serves by default
     list        list registered indexes (* marks the active one)
+    update      self-update the eu4indexer binary to the latest release and update stale config
     version     print the eu4indexer version and exit
 ```
 
