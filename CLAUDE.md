@@ -101,7 +101,12 @@ offline mode → setup → index → serve), on all three platforms.
     final PR link instead of a placeholder commit hash or bare text.
   - CLI commands / flags / output → `docs/commands.md`, the README usage section,
     and the relevant `skills/eu4-indexer/<game>/<lang>/SKILL.md` if the tool/MCP
-    surface changed.
+    surface changed. **When you add, rename, or remove a subcommand, update the
+    `SUBCOMMANDS` block at the top of `docs/commands.md` too — not just the
+    per-command section.** That block mirrors the `--help` output, whose text and
+    order come from `IArgParserTemplate.Usage` in `Eu4Indexer.Cli/Program.fs`
+    (the authoritative source); it has no generator, so it silently drifts unless
+    you hand-edit it to match.
   - Database schema (tables, columns, views, FTS) → `docs/database.md`.
   - Project structure, modules, or the pipeline → `docs/architecture.md`.
   - Build / install / release flow → the README install section and this file.
