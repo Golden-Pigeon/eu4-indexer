@@ -9,6 +9,13 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+### Changed
+
+- Expanded `docs/database.md` into a full schema reference: added a database
+  design-philosophy section, three Mermaid ER diagrams (sources/files, entities,
+  localisation), and a per-table field reference documenting every column's type,
+  meaning, and constraints.
+
 ## [0.3.1] - 2026-06-24
 
 ### Added
