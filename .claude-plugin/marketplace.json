@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "EU4 and HOI4 script index tooling: the eu4-indexer Claude Code plugin (MCP server + per-game guided skills).",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "eu4-indexer",
       "source": "./",
       "description": "Query and reason over a Europa Universalis IV or Hearts of Iron IV script index: explain events/missions/decisions/focuses, trace what triggers what, find bugs, and plan how to reach a goal. Bundles the MCP server and per-game guided skills.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": {
         "name": "Golden-Pigeon"
       },

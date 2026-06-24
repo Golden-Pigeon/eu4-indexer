@@ -9,6 +9,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-24
+
 ### Added
 - `refresh` command: re-indexes a registered database in place after a game or
   mod update. `refresh --name <n>` refreshes one index; with no `--name` it
@@ -161,7 +163,8 @@ Initial release — an EU4 script indexer with a query layer for agents.
   [c23cdfd](https://github.com/Golden-Pigeon/eu4-indexer/commit/c23cdfd),
   [6f69b1d](https://github.com/Golden-Pigeon/eu4-indexer/commit/6f69b1d)).
 
-[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.1.0...v0.1.1
