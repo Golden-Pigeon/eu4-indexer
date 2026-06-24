@@ -15,6 +15,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
   design-philosophy section, three Mermaid ER diagrams (sources/files, entities,
   localisation), and a per-table field reference documenting every column's type,
   meaning, and constraints.
+  ([#7](https://github.com/Golden-Pigeon/eu4-indexer/pull/7))
 
 ## [0.3.1] - 2026-06-24
 
