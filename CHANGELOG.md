@@ -9,6 +9,11 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+### Fixed
+
+- Updated the `SUBCOMMANDS` help block at the top of `docs/commands.md` to include
+  the `refresh` and `update` commands, which were missing.
+
 ### Changed
 
 - Expanded `docs/database.md` into a full schema reference: added a database
