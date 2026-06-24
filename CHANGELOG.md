@@ -13,6 +13,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 - Updated the `SUBCOMMANDS` help block at the top of `docs/commands.md` to include
   the `refresh` and `update` commands, which were missing.
+  ([#8](https://github.com/Golden-Pigeon/eu4-indexer/pull/8))
 
 ### Changed
 
