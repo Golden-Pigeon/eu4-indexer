@@ -9,6 +9,18 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+### Added
+
+- The `refs` causal graph now captures **identity checks** — `has_idea`,
+  `full_idea_group`, `has_reform`, `has_building`, `has_great_project`,
+  `has_active_policy`, `has_disaster`, `has_estate_privilege` (EU4) and
+  `has_completed_focus` (HOI4). Their `target_type` equals the referenced
+  entity's type, so `explain_entity`, `what_triggers`, and `find_by_condition`
+  now surface "what unlocks/checks idea/reform/building/… X" — e.g. Montferrat's
+  `MFA_byzantine_claimants` idea now shows the `restore_byzantine_empire`
+  decision it gates. Requires re-indexing (`Schema.UserVersion` bumped to 4).
+  (PR: _to be backfilled before merge_)
+
 ### Fixed
 
 - `read_query` no longer rejects valid read-only queries that build a transient

@@ -118,6 +118,15 @@ public class Hoi4FixtureIndexTests
             var setsFlag = Scalar(conn,
                 "SELECT count(*) FROM refs WHERE ref_kind='sets_flag'");
             Assert.True(setsFlag > 0, $"expected sets_flag refs, got {setsFlag}");
+
+            // fixture.2's `has_completed_focus = fixture_focus_1` produces a
+            // checks_focus edge pointing at the real focus entity.
+            var checksFocus = Scalar(conn,
+                "SELECT count(*) FROM refs r JOIN entities e " +
+                "ON e.entity_key=r.target_key AND e.entity_type='focus' AND e.is_effective=1 " +
+                "WHERE r.ref_kind='checks_focus' AND r.target_type='focus' " +
+                "AND r.target_key='fixture_focus_1'");
+            Assert.True(checksFocus > 0, $"expected checks_focus ref to fixture_focus_1");
         }
         finally
         {

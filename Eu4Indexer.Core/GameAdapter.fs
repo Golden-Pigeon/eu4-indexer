@@ -174,7 +174,19 @@ module GameAdapter =
                   "add_country_triggered_modifier", ("applies_modifier", "modifier", "name")
                   "has_country_modifier", ("checks_modifier", "modifier", "name")
                   "has_province_modifier", ("checks_modifier", "modifier", "name")
-                  "has_ruler_modifier", ("checks_modifier", "modifier", "name") ] }
+                  "has_ruler_modifier", ("checks_modifier", "modifier", "name")
+                  // identity checks: the value is the key of an existing entity, so
+                  // target_type must equal that entity_type (the MCP inbound lookup,
+                  // GameAdapter <-> Eu4Database.InboundTargetType <-> find_by_condition,
+                  // resolves on it). These let "what checks idea/reform/... X" surface.
+                  "has_idea", ("checks_idea", "idea", "")
+                  "full_idea_group", ("checks_idea_group", "idea_group", "")
+                  "has_reform", ("checks_reform", "government_reform", "")
+                  "has_building", ("checks_building", "building", "")
+                  "has_great_project", ("checks_great_project", "great_project", "type")
+                  "has_active_policy", ("checks_policy", "policy", "")
+                  "has_disaster", ("checks_disaster", "disaster", "")
+                  "has_estate_privilege", ("checks_estate_privilege", "estate_privilege", "") ] }
 
     let hoi4: GameAdapter =
         let languages =
@@ -243,8 +255,12 @@ module GameAdapter =
                   // apply/remove ideas (HOI4's modifier-like concept)
                   "add_ideas", ("applies_modifier", "modifier", "name")
                   "swap_ideas", ("applies_modifier", "modifier", "name")
-                  // check ideas
-                  "has_idea", ("checks_modifier", "modifier", "name") ] }
+                  // check ideas (HOI4 ideas are modifier-like, unlike EU4 ideas)
+                  "has_idea", ("checks_modifier", "modifier", "name")
+                  // identity check: target_type must equal the focus entity_type so
+                  // the MCP inbound lookup resolves on it (focus prerequisite chains
+                  // stay in focus_requirements, not refs).
+                  "has_completed_focus", ("checks_focus", "focus", "") ] }
 
     let allAdapters: GameAdapter list = [ eu4; hoi4 ]
 

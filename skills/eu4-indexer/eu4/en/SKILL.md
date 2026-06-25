@@ -348,6 +348,14 @@ acquisition" or "forcibly revokes"? Until all three are answered, "impossible" i
   "the economy worsens" while the real gameplay effect is in sibling `hidden_effect`, a
   fired hidden event, or a variable/flag that unlocks later content. Use `analyze_effects`
   proactively whenever explaining effects.
+- **A token's special effect lives in its inbound refs**: ideas, idea groups, government
+  reforms, buildings, great projects, and policies are *identity tokens* — their modifier
+  block is only the surface. The real special mechanic is wherever another entity **checks
+  them** (`has_idea`, `has_reform`, …): the decision/mission/event it unlocks. Those inbound
+  edges are now in `refs`, so `explain_entity`/`what_triggers`/`find_by_condition` (passed the
+  idea/reform/… key) surface them directly — no hand-written `script_nodes` query needed.
+  (e.g. Montferrat's `MFA_byzantine_claimants` idea shows the `restore_byzantine_empire`
+  decision it gates.)
 - **Numeric trigger quirk**: in EU4 a numeric condition written `x = 5` usually means
   `x >= 5`. Keep this in mind when explaining conditions.
 - **Don't infer "impossible" from a single restriction**: see Workflow 4. The same effect
