@@ -199,12 +199,20 @@ read it from a `localisation` row.
 | Id type | Lookup method |
 |---|---|
 | **Event** (`namespace.id`) | `read_query`: `SELECT title_key FROM event_details JOIN entities USING(entity_id) WHERE entity_key='<id>'` → then `SELECT value FROM v_effective_loc WHERE loc_key='<title_key>'` |
-| **Mission / Decision** | `explain_entity` (returns localised title) or `read_query`: `SELECT loc_key FROM entity_localisation WHERE entity_id=(SELECT entity_id FROM entities WHERE entity_key='<id>') AND role='title'` → then localisation lookup |
+| **Mission / Decision** | `explain_entity` (returns localised title) or `read_query`: `SELECT loc_key FROM entity_localisation WHERE entity_id=(SELECT entity_id FROM entities WHERE entity_key='<id>') AND role='title'` → then localisation lookup. **A decision's loc_key is NOT the entity_key and NOT `<id>_title` — read it from `entity_localisation`, never assume a naming pattern.** |
 | **Estate privilege** | `read_query`: `SELECT value FROM v_effective_loc WHERE loc_key='<id>'` (privilege loc_key usually equals entity_key) |
 | **Modifier** | `read_query`: `SELECT value FROM v_effective_loc WHERE loc_key='<id>'` — the modifier's script name IS often its loc_key |
 | **Flag / Variable** | Try `search_localisation` first. Many flags are purely mechanical tokens with no localisation row (e.g. `torrieth_is_ruler`, `reformation_money`). **Check before assuming** — if `search_localisation` returns nothing, the flag has no text. In that case, present it as bare flag name plus a short functional note: `torrieth_is_ruler（标记托里艾斯为统治者）`, `reformation_money（防止重复发放改革资金的标记）`. Do NOT invent a translated name for a flag that has no localisation. |
-| **Government reform / Idea / Other** | `read_query`: `SELECT value FROM v_effective_loc WHERE loc_key='<id>'` |
+| **Government reform / Idea / Other** | Try `read_query`: `SELECT value FROM v_effective_loc WHERE loc_key='<id>'` (**only works when the key happens to equal the id**); if it returns nothing, fall back to `entity_localisation` — **do not guess another key name**. |
 | **Proper noun** (country, person, religion, council, …) | `search_localisation(text)` — find the in-game Chinese name and quote it verbatim |
+
+**NEVER construct or guess a loc_key.** A loc_key is an arbitrary author-chosen string —
+there is **no** `<id>_title` / `<id>_desc` naming convention, and it is **not guaranteed**
+to equal the entity_key. The `loc_key='<id>'` shortcut in the table above **only works when
+the key happens to equal the id** (common for estate privileges / modifiers / reforms); the
+moment it returns nothing you must go back to the **authoritative source**: the entity's
+`entity_localisation` (role → loc_key map) or an event's `event_details.title_key` /
+`desc_key`. Easiest of all, just use `explain_entity` — it resolves `localisation` for you.
 
 Always batch lookups: collect all ids you plan to mention, then run the localisation
 queries **before** writing your answer.
@@ -287,6 +295,40 @@ Before sending your answer, scan it for these violations and fix them:
 3. Present the sequence as concrete in-game steps, with the unmodelled prerequisites
    called out.
 
+## Workflow 4 — "Can I / why can't I do X" questions
+
+**Core principle: never infer "impossible" from a single restriction.** A lock usually
+covers only **one path** and often gates only "can it fire / be selected" — it implies
+neither that the goal is unreachable overall nor that an existing state gets revoked.
+Before concluding, run two checks:
+
+1. **The same effect often has multiple producers — vet each one's gate.** Treat the goal
+   as an effect key and first enumerate every entity that produces it (reforms, decisions,
+   events, missions, disasters, agendas…), then read each one's `potential` / `allow`.
+   Entry points frequently differ in their restrictions.
+   `SELECT e.entity_type, e.entity_key FROM script_nodes sn JOIN entities e
+   ON e.entity_id=sn.entity_id AND e.is_effective=1 WHERE sn.key='<effect>' AND sn.value='<target>'`
+2. **"Blocked from selection / firing" ≠ "an existing state is forcibly rolled back".** A
+   restriction may only block *acquiring / being elected* without actively stripping what
+   you already hold. To tell whether it is rolled back, read the **enforcement hook**: the
+   relevant `on_action` and its `*_effect` — is there actual removal logic? No removal logic
+   in script is strong evidence the state is bypassable / retained.
+3. **Distinguish evidence levels.** Script-level facts (conditions, effects, on_actions) are
+   queryable and assertable; hardcoded engine behaviour is invisible to the index and must
+   be flagged as uncertain. Do not answer "impossible" before completing steps 1 and 2.
+
+> Example (HRE throne + changing government): the reform UI greys out "become a
+> republic/theocracy" for the emperor, which looks final — but `change_government` also
+> appears as an effect in several **decisions**, some of which do **not** carry
+> `is_emperor = no`, and the enforcement hook `on_government_change_effect` contains no
+> "dethrone the emperor" logic. Together, the emperor can switch government via a decision
+> without losing the throne.
+
+**Generalise to any "restriction" question**: when something says "not allowed / requires X",
+ask three things first — (a) which action does the lock gate (selecting? firing?
+maintaining?)? (b) is there another producer of the same outcome? (c) is it "blocks
+acquisition" or "forcibly revokes"? Until all three are answered, "impossible" is premature.
+
 ## Boundaries & gotchas
 
 - **Always answer with `「名称」 (id)` and quoted localisation**, never bare ids or self-coined
@@ -308,6 +350,10 @@ Before sending your answer, scan it for these violations and fix them:
   proactively whenever explaining effects.
 - **Numeric trigger quirk**: in EU4 a numeric condition written `x = 5` usually means
   `x >= 5`. Keep this in mind when explaining conditions.
+- **Don't infer "impossible" from a single restriction**: see Workflow 4. The same effect
+  often has multiple producers, and "blocked from selection" is not "an existing state is
+  forcibly removed" — enumerate all producers of the effect and check the enforcing
+  `on_action` before concluding.
 
 ## Setup (if the server isn't connected)
 

@@ -2,6 +2,7 @@ using Eu4Indexer.Core;
 using Eu4Indexer.Mcp;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
+using ModelContextProtocol;
 
 namespace Eu4Indexer.Tests;
 
@@ -136,18 +137,34 @@ public class McpToolsTests
             // get_overrides runs and returns a list
             Assert.NotNull(CatalogTools.GetOverrides(db, null, null, 10));
 
-            // read_query: a SELECT returns rows; a non-SELECT is rejected
+            // read_query: a SELECT returns rows
             var query = QueryTools.ReadQuery(db, "SELECT count(*) AS n FROM entities", 5);
             Assert.Single(query.Rows);
-            Assert.Throws<ArgumentException>(() => QueryTools.ReadQuery(db, "DELETE FROM entities", 5));
+
+            // read-only plans that build a transient index (IN-lists, OR-of-equalities,
+            // DISTINCT) emit IdxInsert against an ephemeral cursor — they are NOT writes
+            // and must succeed, not be rejected by the EXPLAIN guard
+            var inList = QueryTools.ReadQuery(db,
+                "SELECT entity_id FROM entities WHERE entity_type IN ('decision','event') LIMIT 3", 5);
+            Assert.NotEmpty(inList.Rows);
+            var orEq = QueryTools.ReadQuery(db,
+                "SELECT entity_id FROM entities WHERE entity_type='decision' OR entity_type='event' LIMIT 3", 5);
+            Assert.NotEmpty(orEq.Rows);
+            var distinct = QueryTools.ReadQuery(db, "SELECT DISTINCT entity_type FROM entities", 50);
+            Assert.NotEmpty(distinct.Rows);
+
+            // writes / DDL / multi-statement are still rejected, now surfaced as McpException
+            Assert.Throws<McpException>(() => QueryTools.ReadQuery(db, "DELETE FROM entities", 5));
+            Assert.Throws<McpException>(() => QueryTools.ReadQuery(db, "UPDATE entities SET entity_key='x'", 5));
+            Assert.Throws<McpException>(() => QueryTools.ReadQuery(db, "DROP TABLE entities", 5));
             // a write hidden behind a CTE passes the prefix check but the EXPLAIN guard rejects it
-            Assert.Throws<ArgumentException>(() =>
+            Assert.Throws<McpException>(() =>
                 QueryTools.ReadQuery(db, "WITH x AS (SELECT 1) DELETE FROM entities", 5));
 
             // a ';' inside a string literal is fine; a real statement separator is rejected
             var semi = QueryTools.ReadQuery(db, "SELECT ';' AS s", 5);
             Assert.Equal(";", semi.Rows[0]["s"]);
-            Assert.Throws<ArgumentException>(() => QueryTools.ReadQuery(db, "SELECT 1; SELECT 2", 5));
+            Assert.Throws<McpException>(() => QueryTools.ReadQuery(db, "SELECT 1; SELECT 2", 5));
 
             // this index has FTS, so the search tools are usable
             Assert.True(db.FtsAvailable);
