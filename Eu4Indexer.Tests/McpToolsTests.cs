@@ -102,6 +102,29 @@ public class McpToolsTests
                 Assert.NotEmpty(users);
             }
 
+            // identity edges (has_idea -> idea): an idea checked somewhere resolves its
+            // inbound references (proves InboundTargetType maps idea) and is reachable via
+            // find_by_condition (proves the checks_idea ref_kind is in its allow-list).
+            var checkedIdea = db.Query(
+                """
+                SELECT r.target_key FROM refs r
+                JOIN entities e ON e.entity_key = r.target_key
+                               AND e.entity_type = 'idea' AND e.is_effective = 1
+                WHERE r.ref_kind = 'checks_idea' AND r.target_type = 'idea'
+                LIMIT 1
+                """,
+                r => r.GetString(0), null, 1).FirstOrDefault();
+
+            if (checkedIdea is not null)
+            {
+                var ideaInbound = EntityTools.ExplainEntity(db, "idea", checkedIdea);
+                Assert.NotNull(ideaInbound);
+                Assert.True(ideaInbound!.TriggeredBy.Count > 0);
+
+                var ideaUsers = GraphTools.FindByCondition(db, checkedIdea, null, null, 50);
+                Assert.NotEmpty(ideaUsers);
+            }
+
             // trace_to_goal: a flag that is set somewhere is reachable with a chain
             var setFlag = db.Query(
                 """

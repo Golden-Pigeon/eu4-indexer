@@ -171,6 +171,16 @@ These are the non-obvious "change X → also change Y" couplings CI or users bre
   `Schema.UserVersion`; the MCP server rejects indexes whose `PRAGMA user_version`
   differs, and the Postgres `DROP TABLE` list must include any new table.
 
+- **`refs` identity edges are a 3-file contract**: a `ref_kind` whose
+  `target_key` is another entity's key (e.g. `checks_idea`, `checks_focus`) only
+  works end to end if all three agree. Adding one means editing all three:
+  1. `GameAdapter.RefKeyRules` — the `"key", (ref_kind, target_type, childField)`
+     entry, with **`target_type` = the target's `entity_type`**;
+  2. `Eu4Indexer.Mcp/Eu4Database.cs` `InboundTargetType` — map that `entity_type`
+     to the same `target_type`, or `explain_entity`/`what_triggers` show no inbound;
+  3. `Eu4Indexer.Mcp/Tools/GraphTools.cs` `find_by_condition` — add the `ref_kind`
+     to its allow-list, or that tool can't reach it.
+
 ## Conventions worth not relearning
 
 - **`Eu4Indexer.Core` compiles in dependency order.** The `<Compile>` list in

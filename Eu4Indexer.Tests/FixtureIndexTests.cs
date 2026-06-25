@@ -59,6 +59,11 @@ public class FixtureIndexTests
                 "JOIN symbols s ON s.symbol_id=n.symbol_id " +
                 "WHERE e.entity_type='event' AND s.kind='effect' AND s.name='add_stability'") > 0);
 
+            // The decision's `has_idea = fixture_idea` becomes a checks_idea edge.
+            Assert.True(Scalar(conn,
+                "SELECT count(*) FROM refs WHERE ref_kind='checks_idea' " +
+                "AND target_type='idea' AND target_key='fixture_idea'") > 0);
+
             // Localisation decoded for the fixture keys.
             Assert.True(Scalar(conn, "SELECT count(*) FROM localisation WHERE loc_key='fixture.1.t'") > 0);
 
@@ -102,6 +107,14 @@ public class FixtureIndexTests
             Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='focus_tree' AND is_effective=1") >= 1);
             Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='idea' AND is_effective=1") >= 1);
             Assert.True(Scalar(conn, "SELECT count(*) FROM entities WHERE entity_type='event' AND is_effective=1") >= 2);
+
+            // fixture.2's `has_completed_focus = fixture_focus_1` resolves to the
+            // focus entity: the checks_focus edge exists and points at a real focus.
+            Assert.True(Scalar(conn,
+                "SELECT count(*) FROM refs r JOIN entities e " +
+                "ON e.entity_key=r.target_key AND e.entity_type='focus' AND e.is_effective=1 " +
+                "WHERE r.ref_kind='checks_focus' AND r.target_type='focus' " +
+                "AND r.target_key='fixture_focus_1'") > 0);
 
             Assert.Equal(Schema.UserVersion, Scalar(conn, "PRAGMA user_version"));
         }

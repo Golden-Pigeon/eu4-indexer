@@ -21,6 +21,7 @@ country_event = {
 
 	trigger = {
 		has_country_flag = fixture_started
+		has_completed_focus = fixture_focus_1
 	}
 
 	mean_time_to_happen = { days = 30 }

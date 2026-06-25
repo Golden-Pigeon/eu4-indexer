@@ -4,6 +4,7 @@ country_decisions = {
 	fixture_decision = {
 		potential = {
 			has_country_flag = fixture_started
+			has_idea = fixture_idea
 		}
 
 		allow = {

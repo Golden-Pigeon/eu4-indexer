@@ -7,7 +7,7 @@ namespace Eu4Indexer.Core.Database
 module Schema =
 
     [<Literal>]
-    let UserVersion = 3
+    let UserVersion = 4
 
     let private sharedTables =
         """
@@ -200,9 +200,15 @@ CREATE TABLE refs (
     from_context   TEXT NOT NULL,   -- trigger|effect|mtth|option_trigger|option_effect
     ref_kind       TEXT NOT NULL,   -- fires_event|sets_flag|checks_flag|sets_variable|
                                     -- checks_variable|applies_modifier|checks_modifier|
-                                    -- calls_scripted_trigger|calls_scripted_effect|on_action_fires
+                                    -- calls_scripted_trigger|calls_scripted_effect|on_action_fires|
+                                    -- identity checks (target_key = an entity_key):
+                                    -- checks_idea|checks_idea_group|checks_reform|checks_building|
+                                    -- checks_great_project|checks_policy|checks_disaster|
+                                    -- checks_estate_privilege|checks_focus
     target_type    TEXT NOT NULL,   -- event|country_flag|global_flag|province_flag|ruler_flag|
-                                    -- variable|modifier|scripted_trigger|scripted_effect
+                                    -- variable|modifier|scripted_trigger|scripted_effect|
+                                    -- idea|idea_group|government_reform|building|great_project|
+                                    -- policy|disaster|estate_privilege|focus
     target_key     TEXT NOT NULL,
     node_id        INTEGER NOT NULL REFERENCES script_nodes(node_id),
     -- the enclosing event option's clause node, when this reference is inside one
