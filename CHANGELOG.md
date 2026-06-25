@@ -11,12 +11,28 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Fixed
 
+- `read_query` no longer rejects valid read-only queries that build a transient
+  index — `IN (...)` lists, `OR`-of-equalities, `DISTINCT`, and similar plans. The
+  EXPLAIN read-only guard was blocklisting the `IdxInsert` opcode, which SQLite also
+  emits against ephemeral cursors in pure-`SELECT` plans; the guard now keys only on
+  opcodes that a real mutation or DDL emits (`OpenWrite` plus the create/drop/destroy
+  family), with the read-only connection as the primary backstop. The tool also now
+  surfaces the real failure reason (validation message, SQLite error, or query
+  timeout) as an `McpException` instead of a generic invocation error.
+  (PR: _to be backfilled before merge_)
 - Updated the `SUBCOMMANDS` help block at the top of `docs/commands.md` to include
   the `refresh` and `update` commands, which were missing.
   ([#8](https://github.com/Golden-Pigeon/eu4-indexer/pull/8))
 
 ### Changed
 
+- Hardened the `eu4` agent skill (`skills/eu4-indexer/eu4/{zh,en}/SKILL.md`):
+  forbade constructing or guessing localisation keys (loc_keys are arbitrary —
+  always resolve via `entity_localisation` / `event_details` / `explain_entity`),
+  and added a "can I / why can't I do X" workflow that rules out single-gate false
+  negatives (enumerate every producer of an effect, and check the enforcing
+  `on_action` before concluding something is impossible).
+  (PR: _to be backfilled before merge_)
 - Expanded `docs/database.md` into a full schema reference: added a database
   design-philosophy section, three Mermaid ER diagrams (sources/files, entities,
   localisation), and a per-table field reference documenting every column's type,

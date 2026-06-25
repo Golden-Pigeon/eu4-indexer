@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
 namespace Eu4Indexer.Mcp;
@@ -18,6 +19,17 @@ public static class QueryTools
         [Description("A single SELECT/WITH query.")] string sql,
         [Description("Maximum rows to return (default 100, max 1000).")] int limit = 100)
     {
-        return db.ReadQuery(sql, Math.Clamp(limit, 1, 1000));
+        try
+        {
+            return db.ReadQuery(sql, Math.Clamp(limit, 1, 1000));
+        }
+        catch (Exception ex)
+        {
+            // Surface the real reason — validation message, SQLite error, or query
+            // timeout — instead of letting the SDK collapse every failure into a
+            // generic "An error occurred invoking 'read_query'." McpException's
+            // message is passed through to the client.
+            throw new McpException($"read_query failed: {ex.Message}");
+        }
     }
 }

@@ -178,14 +178,20 @@ public sealed class Eu4Database
         return new QueryResult(columns, rows, rows.Count, truncated);
     }
 
-    /// SQLite VDBE opcodes that mutate the database or schema. A pure SELECT
-    /// never emits these (temp sorters use OpenEphemeral, not OpenWrite).
+    /// VDBE opcodes that only a real mutation or DDL emits: writing to a persistent
+    /// table/index always goes through OpenWrite, and schema changes emit the
+    /// create/drop/destroy family. Row-level write opcodes (Insert, InsertInt,
+    /// Delete, IdxInsert, IdxDelete) are deliberately NOT listed: SQLite emits them
+    /// against transient/ephemeral cursors (OpenEphemeral/OpenAutoindex) when
+    /// evaluating perfectly read-only plans — IN-lists, OR-of-equalities, DISTINCT,
+    /// some GROUP BY and semi-joins — so blocklisting them rejects valid read-only
+    /// queries. A pure SELECT can only reach a persistent write via OpenWrite, which
+    /// stays listed; the read-only connection (Mode=ReadOnly) is the primary guard.
     private static readonly HashSet<string> WriteOpcodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "OpenWrite", "Insert", "InsertInt", "Delete", "IdxInsert", "IdxDelete",
-        "Destroy", "Clear", "CreateBtree", "CreateTable", "CreateIndex",
-        "DropTable", "DropIndex", "DropTrigger", "Vacuum", "ParseSchema",
-        "RenameTable", "SqlExec",
+        "OpenWrite", "Destroy", "Clear", "CreateBtree", "CreateTable",
+        "CreateIndex", "DropTable", "DropIndex", "DropTrigger", "Vacuum",
+        "ParseSchema", "RenameTable", "SqlExec",
     };
 
     /// <summary>
