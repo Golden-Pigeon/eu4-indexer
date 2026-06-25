@@ -116,7 +116,10 @@ public static class GraphTools
             FROM refs r
             JOIN entities fe ON fe.entity_id = r.from_entity_id
             WHERE r.target_key = $n
-              AND r.ref_kind IN ('checks_flag', 'checks_variable', 'calls_scripted_trigger')
+              AND r.ref_kind IN ('checks_flag', 'checks_variable', 'calls_scripted_trigger',
+                                 'checks_idea', 'checks_idea_group', 'checks_reform',
+                                 'checks_building', 'checks_great_project', 'checks_policy',
+                                 'checks_disaster', 'checks_estate_privilege', 'checks_focus')
               AND fe.is_effective = 1
             """
             + (scope is null ? "" : " AND r.target_type = $scope")

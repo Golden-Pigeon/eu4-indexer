@@ -442,8 +442,8 @@ means the column is nullable with no extra constraint.
 | `ref_id` | INTEGER | PRIMARY KEY. |
 | `from_entity_id` | INTEGER | NOT NULL, FK → `entities`. The entity making the reference. |
 | `from_context` | TEXT | NOT NULL. Where the reference sits: `trigger`/`effect`/`mtth`/`option_trigger`/`option_effect`. |
-| `ref_kind` | TEXT | NOT NULL. `fires_event`/`sets_flag`/`checks_flag`/`sets_variable`/`checks_variable`/`applies_modifier`/`checks_modifier`/`calls_scripted_trigger`/`calls_scripted_effect`/`on_action_fires`. |
-| `target_type` | TEXT | NOT NULL. Scope-qualified target: `event`/`country_flag`/`global_flag`/`province_flag`/`ruler_flag`/`variable`/`modifier`/`scripted_trigger`/`scripted_effect`. |
+| `ref_kind` | TEXT | NOT NULL. `fires_event`/`sets_flag`/`checks_flag`/`sets_variable`/`checks_variable`/`applies_modifier`/`checks_modifier`/`calls_scripted_trigger`/`calls_scripted_effect`/`on_action_fires`. Plus **identity checks** whose `target_key` is another entity's key: `checks_idea`/`checks_idea_group`/`checks_reform`/`checks_building`/`checks_great_project`/`checks_policy`/`checks_disaster`/`checks_estate_privilege` (EU4), `checks_focus` (HOI4). |
+| `target_type` | TEXT | NOT NULL. Scope-qualified target: `event`/`country_flag`/`global_flag`/`province_flag`/`ruler_flag`/`variable`/`modifier`/`scripted_trigger`/`scripted_effect`. For identity checks the target_type **equals the referenced `entity_type`** (`idea`/`idea_group`/`government_reform`/`building`/`great_project`/`policy`/`disaster`/`estate_privilege`/`focus`), so inbound lookups resolve straight to the entity. |
 | `target_key` | TEXT | NOT NULL. The referenced identifier. |
 | `node_id` | INTEGER | NOT NULL, FK → `script_nodes`. The node that makes the reference. |
 | `option_node_id` | INTEGER | — FK → `script_nodes`. The enclosing event-option clause, when applicable. |

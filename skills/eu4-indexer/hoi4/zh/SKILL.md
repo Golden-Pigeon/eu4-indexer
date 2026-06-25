@@ -333,7 +333,28 @@ SELECT value FROM v_effective_defines WHERE define_key = 'NFocus.FOCUS_POINT_DAY
 2. 对每个感兴趣的理念，用 `explain_entity("idea", "<key>")` 查看其修正值和条件。
 3. 理念可能有 `allowed` 触发器（谁可以使用）和 `visible` 触发器。
 
-## 工作流 4 — 查找 bug / 设计问题
+## 工作流 4 — "能不能 / 为什么做不到 X" 类问题
+
+**核心原则：不要从单一限制直接推出"做不到"。** 一道锁通常只覆盖**一条路径**、
+且往往只管"能否触发 / 选取"，既不代表目标整体不可达，也不代表既有状态会被撤销。
+下结论前先走两步排查：
+
+1. **同一效果常有多个产出者——逐一核对各自的门槛。** 把目标当成一个效果键，先搜出
+   所有会产生它的实体（国策奖励、决议、事件、理念等），再分别看它们的 `available` /
+   `allow`。不同入口的限制常常不同。
+   ```sql
+   SELECT e.entity_type, e.entity_key FROM script_nodes sn JOIN entities e
+   ON e.entity_id=sn.entity_id AND e.is_effective=1 WHERE sn.key='<effect>' AND sn.value='<target>'
+   ```
+
+2. **"被禁止选取 / 触发" ≠ "既有状态会被强制回滚"。** 一条限制可能只挡住"获取 / 解锁"，
+   而不主动剥夺你已经拥有的东西。去查负责**执行**的 on_action 或周期性事件里的实际
+   撤销逻辑——没有，就是"可绕过 / 可保留"的有力证据。
+
+3. **区分证据层级。** 脚本层（条件、效果、on_action）可查、可断言；引擎硬编码行为
+   索引看不到，需明确标注为不确定。完成前两步之前，不要给出"做不到"。
+
+## 工作流 5 — 查找 bug / 设计问题
 
 1. 用 `find_dangling` 定位被检查但从未设置的标记，或被触发但未定义的事件。
 2. 对国策树，检查不可达的国策（前置国策与上游国策互斥的情况）。
@@ -357,6 +378,11 @@ SELECT value FROM v_effective_defines WHERE define_key = 'NFocus.FOCUS_POINT_DAY
 - **理念使用不同于 EU4 的修正**：HOI4 理念修正包含
   `production_factory_efficiency_gain_factor`、`political_power_factor`、
   `research_speed_factor` 等。按其 key 查询。
+- **令牌的特殊效果在入站引用里**：国策是*身份令牌*——其自身块只是元数据。真正
+  的联动在别处**检查完成状态**（`has_completed_focus`）的实体：需要前提国策的
+  事件/决议/国策。这些入站引用已并入 `refs`（`checks_focus`），直接用
+  `explain_entity`/`what_triggers`/`find_by_condition`（传入国策 key）即可查到，
+  无需手写 `script_nodes` 查询。
 
 ## 设置（如果服务器未连接）
 

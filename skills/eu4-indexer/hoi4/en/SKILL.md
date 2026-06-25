@@ -334,7 +334,34 @@ This is a **mandatory step** in any focus explanation. If you state a focus take
    modifier values and conditions.
 3. Ideas may have `allowed` triggers (who can use them) and `visible` triggers.
 
-## Workflow 4 — Find bugs / design issues
+## Workflow 4 — "Can I / why can't I do X" questions
+
+**Core principle: don't infer impossibility from a single restriction.** One gate
+usually covers only **one path** and often only governs "can this be taken/triggered"
+— it doesn't mean the goal is unreachable or that existing state will be revoked.
+Before concluding "impossible", run both checks:
+
+1. **The same effect often has multiple producers — check each one's gates.**
+   Treat the goal as an effect key: first find every entity that produces it
+   (focus completion rewards, decisions, events, ideas), then read their
+   `available` / `allow` separately. Different entry points often have different
+   restrictions.
+   ```sql
+   SELECT e.entity_type, e.entity_key FROM script_nodes sn JOIN entities e
+   ON e.entity_id=sn.entity_id AND e.is_effective=1 WHERE sn.key='<effect>' AND sn.value='<target>'
+   ```
+
+2. **"Blocked from taking/triggering" ≠ "existing state will be forcefully rolled
+   back."** A restriction may only block acquisition/election without actively
+   stripping what you already have. Check the enforcing on_action or periodic
+   event for actual revocation logic — without it, the state is retainable.
+
+3. **Distinguish evidence tiers.** Script-level (conditions, effects, on_actions)
+   is queryable and assertable; engine hardcoded behavior is invisible to the
+   index and must be labeled as uncertain. Don't conclude "impossible" before
+   completing steps 1 and 2.
+
+## Workflow 5 — Find bugs / design issues
 
 1. Use `find_dangling` to locate flags checked but never set, or events fired but
    undefined.
@@ -362,6 +389,13 @@ This is a **mandatory step** in any focus explanation. If you state a focus take
 - **Ideas use different modifiers than EU4**: HOI4 idea modifiers include things
   like `production_factory_efficiency_gain_factor`, `political_power_factor`,
   `research_speed_factor`, etc. Look them up by their key.
+- **A token's special effect lives in its inbound refs**: national foci are
+  *identity tokens* — their own block is just metadata. The real interaction is
+  wherever another entity **checks completion** (`has_completed_focus`): the event,
+  decision, or focus that requires a prior focus. Those inbound edges are now in
+  `refs` (`checks_focus`), so `explain_entity`/`what_triggers`/`find_by_condition`
+  (passed the focus key) surface them directly — no hand-written `script_nodes`
+  query needed.
 
 ## Setup (if the server isn't connected)
 
