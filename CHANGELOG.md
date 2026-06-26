@@ -19,7 +19,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
   now surface "what unlocks/checks idea/reform/building/… X" — e.g. Montferrat's
   `MFA_byzantine_claimants` idea now shows the `restore_byzantine_empire`
   decision it gates. Requires re-indexing (`Schema.UserVersion` bumped to 4).
-  (PR: _to be backfilled before merge_)
+  ([#9](https://github.com/Golden-Pigeon/eu4-indexer/pull/9))
 
 ### Fixed
 
@@ -31,7 +31,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
   family), with the read-only connection as the primary backstop. The tool also now
   surfaces the real failure reason (validation message, SQLite error, or query
   timeout) as an `McpException` instead of a generic invocation error.
-  (PR: _to be backfilled before merge_)
+  ([#9](https://github.com/Golden-Pigeon/eu4-indexer/pull/9))
 - Updated the `SUBCOMMANDS` help block at the top of `docs/commands.md` to include
   the `refresh` and `update` commands, which were missing.
   ([#8](https://github.com/Golden-Pigeon/eu4-indexer/pull/8))
@@ -44,7 +44,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
   and added a "can I / why can't I do X" workflow that rules out single-gate false
   negatives (enumerate every producer of an effect, and check the enforcing
   `on_action` before concluding something is impossible).
-  (PR: _to be backfilled before merge_)
+  ([#9](https://github.com/Golden-Pigeon/eu4-indexer/pull/9))
 - Expanded `docs/database.md` into a full schema reference: added a database
   design-philosophy section, three Mermaid ER diagrams (sources/files, entities,
   localisation), and a per-table field reference documenting every column's type,
