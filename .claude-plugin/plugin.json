@@ -1,6 +1,6 @@
 {
   "name": "eu4-indexer",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Query and reason over a Europa Universalis IV or Hearts of Iron IV script index: explain events/missions/decisions/focuses, trace what triggers what, find bugs, and plan how to reach a goal. Bundles the MCP server and per-game guided skills.",
   "author": {
     "name": "Golden-Pigeon"
