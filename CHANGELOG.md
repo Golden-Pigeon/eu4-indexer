@@ -9,6 +9,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-26
+
 ### Added
 
 - The `refs` causal graph now captures **identity checks** — `has_idea`,
@@ -205,7 +207,8 @@ Initial release — an EU4 script indexer with a query layer for agents.
   [c23cdfd](https://github.com/Golden-Pigeon/eu4-indexer/commit/c23cdfd),
   [6f69b1d](https://github.com/Golden-Pigeon/eu4-indexer/commit/6f69b1d)).
 
-[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.1.1...v0.2.0
