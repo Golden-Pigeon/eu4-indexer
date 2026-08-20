@@ -1,5 +1,10 @@
 # CLAUDE.md
 
+> [!IMPORTANT]
+> `AGENTS.md` and `CLAUDE.md` are a synchronized pair. Any instruction change
+> in either file **must update the other in the same commit**. Keep their
+> substantive contents identical; only the top-level filename heading may differ.
+
 Auto-loaded guidance for agents working in this repo. Deeper references:
 [docs/architecture.md](docs/architecture.md) (structure & pipeline),
 [docs/database.md](docs/database.md) (schema), [docs/commands.md](docs/commands.md)
@@ -26,6 +31,7 @@ skills/eu4-indexer/   #     per-game, per-language agent skills (<game>/<lang>/S
 scripts/              #     build-binaries.{sh,ps1}, mcp-smoke.py
 external/cwtools/     #     vendored CWTools fork (git submodule)
 install.sh / .ps1     #     end-user installers
+AGENTS.md / CLAUDE.md #     mirrored agent guidance; always update together
 docs/                 #     architecture / database / commands references
 ```
 
@@ -140,6 +146,10 @@ offline mode → setup → index → serve), on all three platforms.
 ## Keep these in sync
 
 These are the non-obvious "change X → also change Y" couplings CI or users break on.
+
+- **Agent guidance is mirrored**: `AGENTS.md` and `CLAUDE.md` must be updated
+  together in the same commit. Never edit one without editing the other, and keep
+  their substantive contents identical; only the top-level heading may differ.
 
 - **Release version lives in `Eu4Indexer.Core/AppInfo.fs`** (`let Version`) — the
   single source of truth that `build-binaries.*` and `smoke.yml` read. When you
