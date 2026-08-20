@@ -41,6 +41,25 @@ module AgentInstall =
         for dir in Directory.GetDirectories src do
             copyDir dir (Path.Combine(dest, Path.GetFileName dir))
 
+    /// Copy each game's selected language into a flat user-level skills directory.
+    /// Source: {skillSrc}/{game}/{language}; destination: {skillsHome}/{game}.
+    let private installSkills (skillSrc: string) (language: string) (skillsHome: string) =
+        if Directory.Exists skillSrc then
+            let mutable copied = false
+            for gameDir in Directory.GetDirectories skillSrc do
+                let langDir = Path.Combine(gameDir, language)
+                if Directory.Exists langDir then
+                    let gameName = Path.GetFileName gameDir
+                    copyDir langDir (Path.Combine(skillsHome, gameName))
+                    copied <- true
+
+            if copied then
+                sprintf "; skill (%s) -> %s" language (AppPaths.normalize skillsHome)
+            else
+                sprintf "; skill source for '%s' not found under %s, skipped" language skillSrc
+        else
+            sprintf "; skill source not found (%s), skipped" skillSrc
+
     // -- Claude Code -------------------------------------------------------
 
     /// Write the MCP server into ~/.claude.json (user scope) and copy each
@@ -73,24 +92,9 @@ module AgentInstall =
             backup claudeJson
             File.WriteAllText(claudeJson, root.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
 
-            // Flat user-level skills: each game → ~/.claude/skills/{game}/SKILL.md.
-            let mutable skillMsg = ""
-            if Directory.Exists skillSrc then
-                let skillsHome = Path.Combine(home (), ".claude", "skills")
-                let mutable copied = false
-                for gameDir in Directory.GetDirectories skillSrc do
-                    let langDir = Path.Combine(gameDir, language)
-                    if Directory.Exists langDir then
-                        let gameName = Path.GetFileName gameDir
-                        let dest = Path.Combine(skillsHome, gameName)
-                        copyDir langDir dest
-                        copied <- true
-                if copied then
-                    skillMsg <- sprintf "; skill (%s) -> %s" language (AppPaths.normalize skillsHome)
-                else
-                    skillMsg <- sprintf "; skill source for '%s' not found under %s, skipped" language skillSrc
-            else
-                skillMsg <- sprintf "; skill source not found (%s), skipped" skillSrc
+            // Flat user-level skills: each game -> ~/.claude/skills/{game}/SKILL.md.
+            let skillsHome = Path.Combine(home (), ".claude", "skills")
+            let skillMsg = installSkills skillSrc language skillsHome
 
             { Agent = "claude"; Ok = true; Message = sprintf "MCP '%s' -> %s%s" McpName (AppPaths.normalize claudeJson) skillMsg }
         with ex ->
@@ -118,10 +122,13 @@ module AgentInstall =
 
         loop [] false lines
 
-    let installCodex () : AgentResult =
+    /// Write the MCP server into ~/.codex/config.toml and copy each game's skill
+    /// into the Codex-specific user path ~/.codex/skills/{game}/SKILL.md.
+    /// The explicit home keeps the filesystem work independently testable.
+    let internal installCodexAt (userHome: string) (skillSrc: string) (language: string) : AgentResult =
         try
             let exe = exePath ()
-            let codexToml = Path.Combine(home (), ".codex", "config.toml")
+            let codexToml = Path.Combine(userHome, ".codex", "config.toml")
             AppPaths.ensureDir (Path.GetDirectoryName codexToml) |> ignore
 
             let existing =
@@ -144,9 +151,15 @@ module AgentInstall =
             backup codexToml
             File.WriteAllText(codexToml, content + Environment.NewLine)
 
-            { Agent = "codex"; Ok = true; Message = sprintf "MCP '%s' -> %s" McpName (AppPaths.normalize codexToml) }
+            let skillsHome = Path.Combine(userHome, ".codex", "skills")
+            let skillMsg = installSkills skillSrc language skillsHome
+
+            { Agent = "codex"; Ok = true; Message = sprintf "MCP '%s' -> %s%s" McpName (AppPaths.normalize codexToml) skillMsg }
         with ex ->
             { Agent = "codex"; Ok = false; Message = ex.Message }
+
+    let installCodex (skillSrc: string) (language: string) : AgentResult =
+        installCodexAt (home ()) skillSrc language
 
     /// Install the requested agents (by name). Unknown names yield a failed result.
     let run (agents: string list) (skillSrc: string) (language: string) : AgentResult list =
@@ -154,5 +167,5 @@ module AgentInstall =
         |> List.map (fun a ->
             match a.Trim().ToLowerInvariant() with
             | "claude" -> installClaude skillSrc language
-            | "codex" -> installCodex ()
+            | "codex" -> installCodex skillSrc language
             | other -> { Agent = other; Ok = false; Message = "unknown agent (expected: claude, codex)" })

@@ -285,8 +285,9 @@ Database precedence: explicit `--db`, then the registry's active index, then
 
 Register the MCP server + skill with local agents (Claude Code, Codex). Writes a
 **user-scoped** MCP server pointing at the installed binary by absolute path and
-copies the per-game skill into the agent's skills dir — no plugin and no
-per-directory setup needed.
+copies the per-game skill into `~/.claude/skills/<game>` for Claude Code or
+`~/.codex/skills/<game>` for Codex — no plugin and no per-directory setup
+needed.
 
 | Flag | Description |
 |---|---|

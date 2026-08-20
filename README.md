@@ -148,8 +148,9 @@ automatically.
 
 `eu4indexer install` writes a user-scoped MCP server pointing at the installed
 binary and copies the per-game skill (`skills/eu4-indexer/<game>/<lang>/SKILL.md`)
-into your agent — no plugin and no per-directory setup needed. Choose the skill
-language with `--language en|zh` and the agents with `--agents claude,codex`.
+into `~/.claude/skills/<game>` for Claude Code and `~/.codex/skills/<game>`
+for Codex — no plugin and no per-directory setup needed. Choose the skill language
+with `--language en|zh` and the agents with `--agents claude,codex`.
 Afterwards, start your agent in **any directory** and ask game-content questions
 (events, missions, focuses, modifiers, flags, mod overrides, localisation, "how
 do I achieve X", "is this a bug"); the skill drives the `eu4` MCP tools. See the
