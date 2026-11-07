@@ -1,0 +1,5 @@
+fixture_infantry_track = {
+    name = fixture_infantry_track_name
+    active = { has_country_flag = fixture_started }
+}
+fixture_support_track = { name = fixture_support_track_name }

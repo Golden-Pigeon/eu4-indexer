@@ -131,6 +131,10 @@ eu4indexer index       # build an index from your local install (auto-detects
 eu4indexer install     # register the MCP server + skill with Claude Code / Codex
 ```
 
+CWTools / rule pins and HOI4 doctrine, modifier and expression query support are
+documented in [dependency coverage](docs/dependencies.md). After updating HOI4
+rules, refresh existing indexes to populate the new derived relationships.
+
 Indexes default to `~/.eu4indexer/db/<game>/<name>.db` and are tracked in a
 registry: `eu4indexer list` shows them and `eu4indexer use <name>` sets the
 active one.

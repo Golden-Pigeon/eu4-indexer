@@ -1,0 +1,27 @@
+country_event = {
+    id = fixture.3
+    trigger = {
+        has_any_grand_doctrine = fixture_special_forces
+        has_doctrine = fixture_grand_doctrine
+        has_completed_subdoctrine = fixture_multi_track_doctrine
+        has_completed_track = fixture_infantry_track
+        NOT = { has_doctrine = fixture_alternative_doctrine }
+        is_fighting_in_strategic_region = 50
+        check_expr = { value = 2 atan2 = 3 sin = yes not_equals = 0 }
+    }
+    option = {
+        name = fixture.3.a
+        set_grand_doctrine = fixture_grand_doctrine
+        set_sub_doctrine = {
+            set_sub_doctrine = fixture_multi_track_doctrine
+            folder = fixture_special_forces
+            track = 1
+        }
+        add_daily_mastery = { folder = fixture_special_forces value = 1 }
+        add_units_to_division_template = {
+            template_name = fixture_division
+            regimental_support = { engineer = 1 }
+        }
+        set_variable = { var = fixture_explicit value = { value = 2 lerp = { value = 3 value = 4 } } }
+    }
+}

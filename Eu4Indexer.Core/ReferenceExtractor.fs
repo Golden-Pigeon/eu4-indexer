@@ -94,14 +94,28 @@ module ReferenceExtractor =
             fromContext, (optionNode |> Option.map (fun a -> a.NodeId)), (negCount % 2 = 1)
 
         // Direct leaf value, or the named child of a clause (e.g. { id = X }).
-        let targetOf (node: RefNode) (childField: string) : string option =
+        let targetsOf (node: RefNode) (childField: string) : string list =
             match node.NodeKind with
-            | "leaf" -> validTarget node.Value
+            | "leaf" -> validTarget node.Value |> Option.toList
             | "clause" ->
-                Map.tryFind node.NodeId childrenOf
-                |> Option.defaultValue []
-                |> List.tryPick (fun c -> if keyEquals c.Key childField then validTarget c.Value else None)
-            | _ -> None // "value" (bare value node)
+                let children = Map.tryFind node.NodeId childrenOf |> Option.defaultValue []
+                let fields = childField.Split('|')
+                let named =
+                    fields
+                    |> Array.filter ((<>) "$assignment")
+                    |> Array.tryPick (fun field ->
+                        children |> List.tryPick (fun c -> if keyEquals c.Key field then validTarget c.Value else None))
+                match named with
+                | Some value -> [ value ]
+                | None when Array.contains "$assignment" fields ->
+                    children
+                    |> List.choose (fun c ->
+                        match c.Key with
+                        | Some key when not (Set.contains (key.ToLowerInvariant()) (set [ "value"; "tooltip"; "if_zero" ])) ->
+                            validTarget (Some key)
+                        | _ -> None)
+                | None -> []
+            | _ -> [] // "value" (bare value node)
 
         let makeRow node refKind targetType targetKey =
             let fromContext, optionNodeId, negated = nodeMeta node
@@ -118,15 +132,29 @@ module ReferenceExtractor =
         // 1) keyword-driven references (events, flags, variables, modifiers)
         let keywordRefs =
             nodes
-            |> List.choose (fun node ->
+            |> List.filter (fun node ->
+                match node.ParentId |> Option.bind (fun id -> Map.tryFind id byId), node.Key with
+                | Some parent, Some key when keyEquals parent.Key key ->
+                    match Map.tryFind (key.ToLowerInvariant()) keyRules with
+                    | Some(_, _, childField) -> not (childField.Split('|') |> Array.contains (key.ToLowerInvariant()))
+                    | None -> true
+                | _ -> true)
+            |> List.collect (fun node ->
                 match node.Key with
                 | Some key ->
-                    match Map.tryFind (key.ToLowerInvariant()) keyRules with
+                    let rule =
+                        let scoped =
+                            node.ParentId
+                            |> Option.bind (fun id -> Map.tryFind id byId)
+                            |> Option.bind (fun parent -> parent.Key)
+                            |> Option.bind (fun parentKey -> Map.tryFind (parentKey.ToLowerInvariant() + "/" + key.ToLowerInvariant()) keyRules)
+                        scoped |> Option.orElseWith (fun () -> Map.tryFind (key.ToLowerInvariant()) keyRules)
+                    match rule with
                     | Some(refKind, targetType, childField) ->
-                        targetOf node childField
-                        |> Option.map (fun t -> makeRow node refKind targetType t)
-                    | None -> None
-                | None -> None)
+                        targetsOf node childField
+                        |> List.map (fun t -> makeRow node refKind targetType t)
+                    | None -> []
+                | None -> [])
 
         // 2) scripted trigger / effect calls (key names defined by content)
         let isTriggerSide ctx =
@@ -166,4 +194,28 @@ module ReferenceExtractor =
                               OptionNodeId = None
                               Negated = false })))
 
-        keywordRefs @ scriptedRefs @ onActionRefs
+        // Root metadata relations are scoped by the adapter, never by a common
+        // field name alone (e.g. an event's folder is not a doctrine folder).
+        let structuralRefs =
+            nodes
+            |> List.filter (fun n -> n.ParentId.IsNone && n.Context = "metadata")
+            |> List.collect (fun node ->
+                match node.Key with
+                | None -> []
+                | Some key ->
+                    let ruleKey = sprintf "@%s/%s" (entityType.ToLowerInvariant()) (key.ToLowerInvariant())
+                    match Map.tryFind ruleKey keyRules with
+                    | None -> []
+                    | Some(refKind, targetType, childField) ->
+                        if node.NodeKind = "clause" && childField = "" then
+                            Map.tryFind node.NodeId childrenOf
+                            |> Option.defaultValue []
+                            |> List.choose (fun child ->
+                                if child.NodeKind = "value" then
+                                    validTarget child.Value |> Option.map (makeRow child refKind targetType)
+                                else None)
+                        else
+                            targetsOf node childField |> List.map (makeRow node refKind targetType))
+
+        keywordRefs @ scriptedRefs @ onActionRefs @ structuralRefs
+        |> List.distinctBy (fun r -> r.NodeId, r.RefKind, r.TargetType, r.TargetKey)

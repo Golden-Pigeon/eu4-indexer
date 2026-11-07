@@ -1,0 +1,4 @@
+on_actions = {
+    on_navy_leader_won_combat = { effect = { country_event = { id = fixture.3 } } }
+    on_navy_leader_lost_combat = { effect = { set_country_flag = fixture_naval_defeat } }
+}

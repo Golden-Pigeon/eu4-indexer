@@ -87,6 +87,28 @@ module Generic =
               LocKey = m.Prefix + entityKey + m.Suffix })
         |> List.distinctBy (fun l -> l.Role)
 
+    let private payloadFor (typeDef: ConfigTypeInfo) (lookups: ScriptTree.TagLookups) (entity: EntityRecord) nodes (node: Node) =
+        // Explicit localisation fields are used by doctrines and other generic
+        // types without key-based localisation declarations. Keep declared roles.
+        let explicitLocs =
+            [ "name", "name"; "description", "desc" ]
+            |> List.choose (fun (field, role) ->
+                leafText node field |> Option.map (fun key -> { EntityId = entity.EntityId; Role = role; LocKey = key }))
+        let modifiers =
+            node.Children
+            |> List.filter (fun child -> child.Key.Equals("modifier", System.StringComparison.OrdinalIgnoreCase))
+            |> List.collect (fun block ->
+                block.Leaves
+                |> Seq.map (fun leaf ->
+                    { EntityId = entity.EntityId
+                      ModifierKey = leaf.Key
+                      Value = leaf.ValueText
+                      SymbolId = ScriptTree.resolveModifierSymbol lookups.Modifier leaf.Key })
+                |> Seq.toList)
+        { EntityPayload.generic entity nodes with
+            ModifierValues = modifiers
+            EntityLocs = (locsFor typeDef entity.EntityId entity.EntityKey @ explicitLocs) |> List.distinctBy (fun loc -> loc.Role) }
+
     let extract
         (typeDefs: ConfigTypeInfo list)
         (lookups: ScriptTree.TagLookups)
@@ -116,8 +138,7 @@ module Generic =
 
                 let nodes = ScriptTree.flatten lookups idGen.NextNodeId entity.EntityId parsed.Root
 
-                [ { EntityPayload.generic entity nodes with
-                      EntityLocs = locsFor typeDef entity.EntityId key } ]
+                [ payloadFor typeDef lookups entity nodes parsed.Root ]
             else
                 candidateNodes typeDef parsed.Root
                 |> List.filter (fun (_, n) -> keyFilterAccepts typeDef n.Key)
@@ -132,5 +153,4 @@ module Generic =
 
                     let nodes = ScriptTree.flatten lookups idGen.NextNodeId entity.EntityId node
 
-                    { EntityPayload.generic entity nodes with
-                        EntityLocs = locsFor typeDef entity.EntityId key }))
+                    payloadFor typeDef lookups entity nodes node))

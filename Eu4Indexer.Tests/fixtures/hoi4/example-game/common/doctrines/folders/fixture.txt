@@ -1,0 +1,6 @@
+# Synthetic custom doctrine folder.
+fixture_special_forces = {
+    name = fixture_doctrine_folder_name
+    ledger = army
+    allowed = { has_country_flag = fixture_started }
+}

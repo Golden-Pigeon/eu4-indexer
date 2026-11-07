@@ -28,7 +28,7 @@ module Setup =
         | "hoi4" ->
             Some
                 { Repo = "cwtools/cwtools-hoi4-config"
-                  Ref = "f1460d139036e75a8dd065dbd27b27415172654f" }
+                  Ref = "297dd69c42aabe10078a8b7ab7f2d07ee631d4ef" }
         | _ -> None
 
     let allGameIds = [ "eu4"; "hoi4" ]

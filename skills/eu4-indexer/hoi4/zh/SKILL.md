@@ -388,6 +388,16 @@ SELECT value FROM v_effective_defines WHERE define_key = 'NFocus.FOCUS_POINT_DAY
 
 数据库选择仅作用于当前查询会话。共用连接的客户端应在每次工具调用中带上 `_meta["eu4indexer/sessionId"]`；独占连接也可用 `serve --query-session <id>`。省略标识会保留原有连接级选库行为。不要修改其他会话的选择；闲置会话可用 `close_query_session` 释放。
 
+## 学说与较新 HOI4 脚本功能
+
+- 用 `describe_schema` 查看 `doctrine_folder`、`grand_doctrine`、`doctrine_track`、`subdoctrine`，通过本地化定位名称，再用 `explain_entity` 读取完整脚本树。
+- `what_does_it_do` / `what_triggers` 包含分类归属、多轨道的全部成员、XOR 互斥、学说分配和精通度目标；`find_by_condition` 支持学说、分类、轨道条件及其否定。大学说和子学说共用引用目标类型 `doctrine`。
+- XOR 表示可选分支，不得把奖励直接相加。轨道列表表示可用轨道；`set_sub_doctrine.track` 的数字是槽位序号，不是轨道标识。重复的装备加成块保留各自的顺序和结构。
+- `resolve_symbol` 支持 CWT 模板生成的实际修正名，例如 `production_cost_arms_factory_factor`。修正的多个作用类别以 `|` 分隔。
+- `analyze_effects` 支持能力的 `one_time_effect`、特质的 `on_add`/`on_remove`、海军将领钩子与决议效果块；新增部署和战略区域条件按触发器标记。
+- 数学表达式保留有序脚本树，不代表已知的运行时或存档数值。通过脚本树检查 `pow`、`root`、`mod`、`lerp`、三角函数和除法 `if_zero`；变量写入支持 `which`、`var` 和简写赋值。效果分析会明确标注表达式，不得凭空给出计算结果。
+- 已有索引需要安装更新后的规则并刷新，才能获得新增派生关系。
+
 ## 设置（如果服务器未连接）
 
 构建索引，然后注册服务器：

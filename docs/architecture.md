@@ -104,6 +104,12 @@ against the current .NET SDK / FSharp.Core — because the published NuGet
 Changes to CWTools itself belong in the fork; update the submodule pointer here
 in a separate, clearly described commit.
 
+Game-rule pins and feature coverage are recorded in [dependencies.md](dependencies.md).
+`ScriptTree` recognizes generated modifier names and additional HOI4 condition /
+effect blocks. `ReferenceExtractor` interprets adapter-scoped root relations
+(`@entity_type/field`) and command parameters (`command/field`); this keeps
+doctrine vocabulary out of the shared graph algorithm.
+
 ## Application management and session selection
 
 `Eu4Indexer.Cli/Management.fs` adapts the existing Discovery, Setup, Pipeline and IndexInputs modules to a versioned one-request JSONL API. It publishes validated immutable files before updating the registry. `DatabaseSelection` stores connection defaults separately from logical session selections. The MCP call filter uses an async request scope so transient database injection resolves the correct immutable artifact for every tool. See [management.md](management.md).
