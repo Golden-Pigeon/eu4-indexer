@@ -52,30 +52,45 @@ module Registry =
 
     let save (config: Config) =
         AppPaths.home () |> AppPaths.ensureDir |> ignore
-        File.WriteAllText(AppPaths.configFile (), JsonSerializer.Serialize(config, jsonOptions))
+        let target = AppPaths.configFile ()
+        let temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp"
+        try
+            File.WriteAllText(temp, JsonSerializer.Serialize(config, jsonOptions))
+            File.Move(temp, target, true)
+        finally
+            if File.Exists temp then File.Delete temp
 
     let findByName (name: string) (config: Config) =
         config.Databases |> Array.tryFind (fun e -> e.Name = name)
 
+    /// Serialize read-modify-write across CLI and management processes.
+    let update (change: Config -> Config * 'a) : 'a =
+        AppPaths.ensureDir (AppPaths.home()) |> ignore
+        let deadline = DateTime.UtcNow.AddSeconds 30.
+        let rec acquire () =
+            try new FileStream(Path.Combine(AppPaths.home(), "registry.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)
+            with :? IOException when DateTime.UtcNow < deadline -> Threading.Thread.Sleep 20; acquire()
+        use held = acquire()
+        let config, result = change (load())
+        save config
+        result
+
     /// Insert or replace an entry by name, optionally marking it active, and
     /// persist. Paths are normalised to forward slashes on the way in.
     let upsert (entry: DbEntry) (setActive: bool) =
-        let config = load ()
-        let entry = { entry with Path = AppPaths.normalize entry.Path }
-        let others = config.Databases |> Array.filter (fun e -> e.Name <> entry.Name)
-        let databases = Array.append others [| entry |] |> Array.sortBy (fun e -> e.Name)
-        let activeDb = if setActive then entry.Name else config.ActiveDb
-        save { ActiveDb = activeDb; Databases = databases }
+        update (fun config ->
+            let entry = { entry with Path = AppPaths.normalize entry.Path }
+            let others = config.Databases |> Array.filter (fun e -> e.Name <> entry.Name)
+            let databases = Array.append others [| entry |] |> Array.sortBy (fun e -> e.Name)
+            let activeDb = if setActive then entry.Name else config.ActiveDb
+            { ActiveDb = activeDb; Databases = databases }, ())
 
     /// Set the active database by name. Returns false if the name is unknown.
     let setActive (name: string) =
-        let config = load ()
-
-        match findByName name config with
-        | None -> false
-        | Some _ ->
-            save { config with ActiveDb = name }
-            true
+        update (fun config ->
+            match findByName name config with
+            | None -> config, false
+            | Some _ -> { config with ActiveDb = name }, true)
 
     /// The filesystem path of the active database, if any is set and known.
     let activePath () : string option =

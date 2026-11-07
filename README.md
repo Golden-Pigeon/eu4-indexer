@@ -203,3 +203,7 @@ Contributions are welcome — bug fixes, new extractors, and new game adapters. 
   tool is built on, vendored as a [fork](https://github.com/Golden-Pigeon/cwtools).
 - The non-Latin EU4 special-escape decoding logic is based on
   [bruceCzK's original conversion script](https://gist.github.com/bruceCzK/96ad6e054111f929ed67291552d36334).
+
+### Application management and isolated query sessions
+
+Applications can use `eu4indexer manage` with one JSON request on stdin for game/mod discovery, rules setup, index builds, refresh, import and inspection. Immutable versioned builds preserve the previous index on failure. MCP clients can isolate selection with `_meta["eu4indexer/sessionId"]` on each `tools/call`, or `serve --query-session <id>` for a dedicated connection. Existing clients retain connection-local selection. See the [management and session reference](docs/management.md).

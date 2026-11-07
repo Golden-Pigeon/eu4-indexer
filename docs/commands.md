@@ -15,6 +15,7 @@ SUBCOMMANDS:
     detect      show resolved game dir, mods, and predicted file overrides
     workshop    list installed Steam Workshop items (id and mod name)
     playset     list launcher playsets, or the mods of one playset
+    manage      machine-readable management API (one JSON request, JSONL events)
     serve       run the read-only MCP server over stdio
     setup       download the cwtools config rules for the game into ~/.eu4indexer/config/<game>
     install     register the MCP server + skill with local agents (Claude Code, Codex)
@@ -401,3 +402,7 @@ can switch between them mid-session.
 The bundled per-game skill (`skills/eu4-indexer/<game>/<lang>/SKILL.md`) teaches
 an agent the game's causal model and the workflows for combining these tools
 (explain an entity, explain a phenomenon / find a bug, plan how to reach a goal).
+
+## `manage` and query sessions
+
+See [Management API and query sessions](management.md) for the versioned JSONL protocol, all operations, and `serve --query-session <id>`. Existing CLI commands retain their behavior.

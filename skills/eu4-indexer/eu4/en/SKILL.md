@@ -363,6 +363,10 @@ acquisition" or "forcibly revokes"? Until all three are answered, "impossible" i
   forcibly removed" — enumerate all producers of the effect and check the enforcing
   `on_action` before concluding.
 
+### Query session isolation
+
+Database selection applies only to the current query session. Clients sharing a connection must include `_meta["eu4indexer/sessionId"]` on every tool call. A dedicated client may use `serve --query-session <id>`. Omission preserves legacy connection selection. Do not change another session's selection; release unused sessions with `close_query_session`.
+
 ## Setup (if the server isn't connected)
 
 Build an index, then register the server:

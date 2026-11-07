@@ -58,7 +58,15 @@ public static class McpServer
             return 2;
         }
 
-        var builder = Host.CreateApplicationBuilder(args);
+        string? defaultSession = null;
+        for (var i = 0; i < args.Length - 1; i++)
+            if (args[i] == "--query-session") defaultSession = args[i + 1];
+
+        var builder = new HostApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            DisableDefaults = true,
+        });
 
         // stdout carries the MCP protocol; all logs must go to stderr.
         builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
@@ -70,6 +78,12 @@ public static class McpServer
         builder.Services
             .AddMcpServer()
             .WithStdioServerTransport()
+            .WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, cancellationToken) =>
+            {
+                var id = context.Params?.Meta?["eu4indexer/sessionId"]?.GetValue<string>() ?? defaultSession;
+                using var scope = selection.EnterSession(id);
+                return await next(context, cancellationToken);
+            }))
             // Pass this assembly explicitly: the entry assembly is now the F# CLI,
             // so the default (entry-assembly) tool scan would miss the C# tools.
             .WithToolsFromAssembly(Assembly.GetExecutingAssembly());

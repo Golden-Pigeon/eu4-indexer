@@ -384,6 +384,10 @@ SELECT value FROM v_effective_defines WHERE define_key = 'NFocus.FOCUS_POINT_DAY
   `explain_entity`/`what_triggers`/`find_by_condition`（传入国策 key）即可查到，
   无需手写 `script_nodes` 查询。
 
+### 查询会话隔离
+
+数据库选择仅作用于当前查询会话。共用连接的客户端应在每次工具调用中带上 `_meta["eu4indexer/sessionId"]`；独占连接也可用 `serve --query-session <id>`。省略标识会保留原有连接级选库行为。不要修改其他会话的选择；闲置会话可用 `close_query_session` 释放。
+
 ## 设置（如果服务器未连接）
 
 构建索引，然后注册服务器：

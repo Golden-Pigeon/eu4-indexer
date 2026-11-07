@@ -102,11 +102,13 @@ type VersionArgs =
             | Unused -> ""
 
 type ServeArgs =
+    | Query_Session of id: string
     | [<AltCommandLine("-o")>] Db of path: string
 
     interface IArgParserTemplate with
         member this.Usage =
             match this with
+            | Query_Session _ -> "default logical query-session id (per-request _meta overrides it)"
             | Db _ -> "index database to serve (default: the active database, or $EU4_DB)"
 
 type SetupArgs =
@@ -171,7 +173,13 @@ type RefreshArgs =
             | Verbose -> "print per-stage progress"
             | Progress -> "show a live counter of files / entities / loc entries"
 
+type ManagementArgs =
+    | Request of json: string
+    interface IArgParserTemplate with
+        member this.Usage = "JSON request (default: read one request from stdin)"
+
 type CliArgs =
+    | [<CliPrefix(CliPrefix.None)>] Manage of ParseResults<ManagementArgs>
     | [<CliPrefix(CliPrefix.None)>] Index of ParseResults<IndexArgs>
     | [<CliPrefix(CliPrefix.None)>] Refresh of ParseResults<RefreshArgs>
     | [<CliPrefix(CliPrefix.None)>] Detect of ParseResults<DetectArgs>
@@ -188,6 +196,7 @@ type CliArgs =
     interface IArgParserTemplate with
         member this.Usage =
             match this with
+            | Manage _ -> "versioned JSONL management API for GUI and automation clients"
             | Index _ -> "parse game + mods and write the SQLite index"
             | Refresh _ -> "re-index registered databases in place (after a game or mod update)"
             | Detect _ -> "show resolved game dir, mods, and predicted file overrides"
@@ -614,11 +623,12 @@ let private runPlayset (args: ParseResults<PlaysetArgs>) =
                 ExitOk
 
 let private runServe (args: ParseResults<ServeArgs>) =
+    let serverArgs = args.TryGetResult ServeArgs.Query_Session |> Option.map (fun id -> [| "--query-session"; id |]) |> Option.defaultValue [||]
     // Database precedence: explicit --db, then the registry's active index,
     // then $EU4_DB (handled inside the MCP host when no path is passed).
     match args.TryGetResult ServeArgs.Db |> Option.orElse (Registry.activePath ()) with
-    | Some path -> Eu4Indexer.Mcp.McpServer.RunWithDatabaseAsync(path, [||]).GetAwaiter().GetResult()
-    | None -> Eu4Indexer.Mcp.McpServer.RunAsync([||]).GetAwaiter().GetResult()
+    | Some path -> Eu4Indexer.Mcp.McpServer.RunWithDatabaseAsync(path, serverArgs).GetAwaiter().GetResult()
+    | None -> Eu4Indexer.Mcp.McpServer.RunAsync(serverArgs).GetAwaiter().GetResult()
 
 let private runSetup (args: ParseResults<SetupArgs>) =
     let refOverride = args.TryGetResult SetupArgs.Ref
@@ -806,6 +816,7 @@ let main argv =
         let results = parser.ParseCommandLine(inputs = argv, raiseOnUsage = true)
 
         match results.GetSubCommand() with
+        | Manage args -> Management.run (args.TryGetResult ManagementArgs.Request |> Option.defaultWith Console.In.ReadToEnd)
         | Index indexArgs -> runIndex indexArgs
         | Refresh refreshArgs -> runRefresh refreshArgs
         | Detect detectArgs -> runDetect detectArgs
