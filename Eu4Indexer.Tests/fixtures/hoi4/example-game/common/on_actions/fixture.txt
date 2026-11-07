@@ -1,4 +1,10 @@
 on_actions = {
-    on_navy_leader_won_combat = { effect = { country_event = { id = fixture.3 } } }
-    on_navy_leader_lost_combat = { effect = { set_country_flag = fixture_naval_defeat } }
+    on_navy_leader_won_combat = {
+        events = { fixture.1 }
+        effect = { country_event = { id = fixture.3 } }
+    }
+    on_navy_leader_lost_combat = {
+        random_events = { 10 = fixture.2 }
+        effect = { set_country_flag = fixture_naval_defeat }
+    }
 }
