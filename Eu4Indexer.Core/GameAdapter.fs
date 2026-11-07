@@ -42,7 +42,10 @@ type GameAdapter =
       LocFileLanguage: string -> string option
       /// (ref_kind, target_type, child field) keyed by lowercased script key
       /// that produces the reference. Scoped per game because trigger/effect
-      /// keywords differ.
+      /// keywords differ. A key of @entity_type/field applies only to that
+      /// entity's root metadata field; list values are supported. Child fields
+      /// may use | alternatives; $assignment reads variable shorthand keys.
+      /// parent/field addresses parameters of a specific command.
       RefKeyRules: Map<string, string * string * string> }
 
 module GameAdapter =
@@ -243,12 +246,12 @@ module GameAdapter =
                   "has_country_flag", ("checks_flag", "country_flag", "flag")
                   "has_global_flag", ("checks_flag", "global_flag", "flag")
                   // set/change variables
-                  "set_variable", ("sets_variable", "variable", "which")
-                  "change_variable", ("sets_variable", "variable", "which")
-                  "add_to_variable", ("sets_variable", "variable", "which")
-                  "subtract_variable", ("sets_variable", "variable", "which")
-                  "multiply_variable", ("sets_variable", "variable", "which")
-                  "divide_variable", ("sets_variable", "variable", "which")
+                  "set_variable", ("sets_variable", "variable", "which|var|$assignment")
+                  "change_variable", ("sets_variable", "variable", "which|var|$assignment")
+                  "add_to_variable", ("sets_variable", "variable", "which|var|$assignment")
+                  "subtract_variable", ("sets_variable", "variable", "which|var|$assignment")
+                  "multiply_variable", ("sets_variable", "variable", "which|var|$assignment")
+                  "divide_variable", ("sets_variable", "variable", "which|var|$assignment")
                   // check variables
                   "check_variable", ("checks_variable", "variable", "which")
                   "has_variable", ("checks_variable", "variable", "which")
@@ -260,7 +263,26 @@ module GameAdapter =
                   // identity check: target_type must equal the focus entity_type so
                   // the MCP inbound lookup resolves on it (focus prerequisite chains
                   // stay in focus_requirements, not refs).
-                  "has_completed_focus", ("checks_focus", "focus", "") ] }
+                  "has_completed_focus", ("checks_focus", "focus", "")
+                  // Grand and subdoctrines share the has_doctrine namespace.
+                  "has_doctrine", ("checks_doctrine", "doctrine", "")
+                  "has_completed_subdoctrine", ("checks_doctrine", "doctrine", "")
+                  "has_any_grand_doctrine", ("checks_doctrine_folder", "doctrine_folder", "")
+                  "has_subdoctrine_in_track", ("checks_doctrine_track", "doctrine_track", "")
+                  "has_completed_track", ("checks_doctrine_track", "doctrine_track", "")
+                  "set_grand_doctrine", ("assigns_doctrine", "doctrine", "")
+                  "set_sub_doctrine", ("assigns_doctrine", "doctrine", "set_sub_doctrine")
+                  "set_sub_doctrine/folder", ("assigns_doctrine_folder", "doctrine_folder", "")
+                  "add_mastery/folder", ("adds_mastery", "doctrine_folder", "")
+                  "add_daily_mastery/folder", ("adds_mastery", "doctrine_folder", "")
+                  "add_mastery_bonus/folder", ("adds_mastery", "doctrine_folder", "")
+                  "add_mastery/track", ("adds_mastery", "doctrine_track", "")
+                  "add_daily_mastery/track", ("adds_mastery", "doctrine_track", "")
+                  "add_mastery_bonus/track", ("adds_mastery", "doctrine_track", "")
+                  "@grand_doctrine/folder", ("doctrine_in_folder", "doctrine_folder", "")
+                  "@grand_doctrine/tracks", ("doctrine_uses_track", "doctrine_track", "")
+                  "@subdoctrine/track", ("doctrine_uses_track", "doctrine_track", "")
+                  "@subdoctrine/xor", ("doctrine_excludes", "doctrine", "") ] }
 
     let allAdapters: GameAdapter list = [ eu4; hoi4 ]
 

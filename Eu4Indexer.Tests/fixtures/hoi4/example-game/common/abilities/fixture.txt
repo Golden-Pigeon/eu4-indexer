@@ -1,0 +1,8 @@
+ability = {
+    fixture_deployed_ability = {
+        name = fixture_ability_name
+        requires_deployed_hq = yes
+        allowed = { is_deployed = yes }
+        one_time_effect = { set_country_flag = fixture_ability_used }
+    }
+}

@@ -64,4 +64,30 @@ public class ReferenceExtractorTests
             r.RefKind == "checks_focus" && r.TargetType == "focus"
             && r.TargetKey == "fixture_focus_1");
     }
+
+    [Fact]
+    public void Hoi4_VariableForms_KeepLegacyAndMathExpressionAssignments()
+    {
+        var rows = Extract(GameAdapterModule.hoi4,
+            Clause(1, "set_variable", "effect"), Leaf(2, "which", "legacy", "effect", 1),
+            Clause(3, "set_variable", "effect"), Leaf(4, "var", "explicit", "effect", 3),
+            Clause(5, "set_variable", "effect"), Clause(6, "score", "effect", 5),
+            Leaf(7, "value", "4", "effect", 6), Leaf(8, "pow", "2", "effect", 6),
+            Leaf(9, "another_score", "3", "effect", 5), Leaf(10, "tooltip", "help", "effect", 5));
+        Assert.Equal(new[] { "another_score", "explicit", "legacy", "score" }, rows.Select(r => r.TargetKey).Order().ToArray());
+    }
+
+    [Fact]
+    public void Hoi4_CommandParameters_DoNotBecomeUnrelatedMetadataRelations()
+    {
+        var rows = Extract(GameAdapterModule.hoi4,
+            Clause(1, "set_sub_doctrine", "effect"),
+            Leaf(2, "set_sub_doctrine", "sub", "effect", 1),
+            Leaf(3, "folder", "custom_folder", "effect", 1),
+            Leaf(4, "track", "1", "effect", 1),
+            Leaf(5, "folder", "unrelated", "metadata"));
+        Assert.Single(rows, r => r.RefKind == "assigns_doctrine");
+        Assert.Contains(rows, r => r.TargetKey == "custom_folder" && r.TargetType == "doctrine_folder");
+        Assert.DoesNotContain(rows, r => r.TargetKey is "1" or "unrelated");
+    }
 }

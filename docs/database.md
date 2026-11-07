@@ -367,7 +367,7 @@ means the column is nullable with no extra constraint.
 | `symbol_id` | INTEGER | PRIMARY KEY. |
 | `name` | TEXT | NOT NULL. The identifier (e.g. `add_stability`). |
 | `kind` | TEXT | NOT NULL, CHECK in (`trigger`, `effect`, `modifier`). UNIQUE per `(kind, name)`. |
-| `scope` | TEXT | — Scope the symbol applies in, when known. |
+| `scope` | TEXT | — Scope categories, when known; multiple categories are sorted and joined with `\|`. Generated modifier names retain their CWT template in `name`. |
 | `cwt_file` | TEXT | NOT NULL. The `.cwt` config file that defined it. |
 
 #### `entities` — generic entity table
@@ -448,6 +448,13 @@ means the column is nullable with no extra constraint.
 | `node_id` | INTEGER | NOT NULL, FK → `script_nodes`. The node that makes the reference. |
 | `option_node_id` | INTEGER | — FK → `script_nodes`. The enclosing event-option clause, when applicable. |
 | `negated` | INTEGER | NOT NULL, DEFAULT 0. `1` when the reference sits inside a `NOT`. |
+
+HOI4 doctrine references additionally use `checks_doctrine`, `checks_doctrine_folder`,
+`checks_doctrine_track`, `assigns_doctrine`, `assigns_doctrine_folder`, `adds_mastery`,
+`doctrine_in_folder`, `doctrine_uses_track` and `doctrine_excludes`. Grand and
+subdoctrines share `target_type=doctrine`; folders and tracks use their entity
+type. These additive derived rows require refresh, without changing table DDL.
+See [dependency coverage](dependencies.md) for concrete query behavior.
 
 #### Detail tables — shared
 

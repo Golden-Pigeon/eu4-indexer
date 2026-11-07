@@ -181,6 +181,12 @@ These are the non-obvious "change X → also change Y" couplings CI or users bre
   `Schema.UserVersion`; the MCP server rejects indexes whose `PRAGMA user_version`
   differs, and the Postgres `DROP TABLE` list must include any new table.
 
+- **Game-rule upgrades**: update `Setup.configForGame` deliberately; review new
+  gameplay features as well as parser compatibility. Keep `docs/dependencies.md`,
+  both HOI4 skill translations and fixture tests current. CI runs the complete
+  suite with both pinned config directories. Doctrine grand/sub types share the
+  `doctrine` reference namespace because `has_doctrine` accepts either.
+
 - **`refs` identity edges are a 3-file contract**: a `ref_kind` whose
   `target_key` is another entity's key (e.g. `checks_idea`, `checks_focus`) only
   works end to end if all three agree. Adding one means editing all three:

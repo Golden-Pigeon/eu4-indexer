@@ -1,0 +1,16 @@
+fixture_multi_track_doctrine = {
+    track = { fixture_infantry_track fixture_support_track }
+    name = fixture_multi_track_name
+    description = fixture_multi_track_desc
+    xor = { fixture_alternative_doctrine }
+    equipment_bonus = { infantry = { soft_attack = 0.1 } }
+    equipment_bonus = { artillery = { soft_attack = 0.2 } }
+    effect = {
+        set_variable = { fixture_mastery = { value = 4 pow = 2 mod = 3 round = yes } }
+        divide_variable = { var = fixture_mastery value = { value = 3 root = 2 } if_zero = 1 }
+    }
+}
+fixture_alternative_doctrine = {
+    track = fixture_infantry_track
+    name = fixture_alternative_name
+}

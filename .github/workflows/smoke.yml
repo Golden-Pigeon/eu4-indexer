@@ -59,7 +59,8 @@ jobs:
         shell: bash
         env:
           EU4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/eu4
-        run: dotnet test -c Release --filter "FullyQualifiedName~FixtureIndexTests"
+          HOI4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/hoi4
+        run: dotnet test -c Release
 
       - name: Build, install, and smoke-test (Windows)
         if: runner.os == 'Windows'

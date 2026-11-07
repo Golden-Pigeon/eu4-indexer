@@ -112,6 +112,14 @@ public static class EntityTools
             r => new SymbolMatch(r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), r.GetString(2)),
             nameParam);
 
+        if (!matches.Any(m => m.Kind == "modifier"))
+            matches.AddRange(db.Query(
+                    "SELECT name, scope, cwt_file FROM symbols WHERE kind = 'modifier' AND (name LIKE '%<%' OR name LIKE '%[%')",
+                    r => new { Name = r.GetString(0), Scope = r.IsDBNull(1) ? null : r.GetString(1), File = r.GetString(2) })
+                .Where(s => Eu4Indexer.Core.ScriptTree.modifierTemplateMatches(s.Name, name))
+                .Select(s => new SymbolMatch("modifier", s.Scope, s.File))
+                .Distinct());
+
         var scripted = db.Query(
             """
             SELECT entity_id, entity_type

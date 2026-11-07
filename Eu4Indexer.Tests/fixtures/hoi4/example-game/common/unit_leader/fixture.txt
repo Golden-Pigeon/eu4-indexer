@@ -1,0 +1,8 @@
+leader_traits = {
+    fixture_commander = {
+        type = corps_commander
+        country_trigger = { has_country_flag = fixture_started }
+        on_add = { set_country_flag = fixture_commander_added }
+        on_remove = { set_country_flag = fixture_commander_removed }
+    }
+}

@@ -25,6 +25,36 @@ module ScriptTree =
           Effect = catalog.EffectLookup
           Modifier = catalog.ModifierLookup }
 
+    let private templateToken = Regex(@"<[^>]+>|(?:enum|value)\[[^\]]+\]", RegexOptions.Compiled)
+    let private templateRegexes = System.Collections.Concurrent.ConcurrentDictionary<string, Regex>()
+    let private templateLists = System.Runtime.CompilerServices.ConditionalWeakTable<Map<string, int>, (string * int) array>()
+
+    /// Match a concrete modifier against a CWT-generated name such as
+    /// production_cost_<building>_factor. Tokens denote identifiers, not globs.
+    let modifierTemplateMatches (template: string) (name: string) =
+        if not (templateToken.IsMatch template) then false
+        else
+            let regex =
+                templateRegexes.GetOrAdd(template, fun pattern ->
+                    let expression = System.Text.StringBuilder("^")
+                    let mutable offset = 0
+                    for token in templateToken.Matches pattern do
+                        expression.Append(Regex.Escape(pattern.Substring(offset, token.Index - offset))) |> ignore
+                        expression.Append("[a-zA-Z0-9_]+") |> ignore
+                        offset <- token.Index + token.Length
+                    expression.Append(Regex.Escape(pattern.Substring(offset))).Append("$") |> ignore
+                    Regex(expression.ToString(), RegexOptions.Compiled ||| RegexOptions.IgnoreCase ||| RegexOptions.CultureInvariant))
+            regex.IsMatch name
+
+    let resolveModifierSymbol (modifiers: Map<string, int>) (key: string) =
+        match Map.tryFind (key.ToLowerInvariant()) modifiers with
+        | Some id -> Some id
+        | None ->
+            let templates =
+                templateLists.GetValue(modifiers, fun items ->
+                    items |> Map.toArray |> Array.filter (fun (name, _) -> templateToken.IsMatch name))
+            templates |> Array.tryPick (fun (pattern, id) -> if modifierTemplateMatches pattern key then Some id else None)
+
     /// Keys that switch the context of their block regardless of parent context.
     /// Covers events, missions, decisions, modifiers and the common patterns of
     /// generic common/ types.
@@ -39,12 +69,29 @@ module ScriptTree =
               "can_start", TriggerCtx
               "can_stop", TriggerCtx
               "can_end", TriggerCtx
+              "allowed", TriggerCtx
+              "available", TriggerCtx
+              "visible", TriggerCtx
+              "active", TriggerCtx
+              "cancel_trigger", TriggerCtx
+              "remove_trigger", TriggerCtx
+              "country_trigger", TriggerCtx
               "immediate", EffectCtx
               "effect", EffectCtx
               "option", EffectCtx
               "after", EffectCtx
               "on_start", EffectCtx
               "on_end", EffectCtx
+              "on_add", EffectCtx
+              "on_remove", EffectCtx
+              "one_time_effect", EffectCtx
+              "completion_reward", EffectCtx
+              "complete_effect", EffectCtx
+              "cancel_effect", EffectCtx
+              "remove_effect", EffectCtx
+              "timeout_effect", EffectCtx
+              "on_navy_leader_won_combat", EffectCtx
+              "on_navy_leader_lost_combat", EffectCtx
               "mean_time_to_happen", MtthCtx
               "ai_chance", AiChanceCtx
               "ai_will_do", AiChanceCtx
@@ -89,7 +136,7 @@ module ScriptTree =
         | MtthCtx
         | AiChanceCtx -> Map.tryFind lower lookups.Trigger
         | EffectCtx -> Map.tryFind lower lookups.Effect
-        | MetadataCtx -> Map.tryFind lower lookups.Modifier
+        | MetadataCtx -> resolveModifierSymbol lookups.Modifier lower
 
     /// Flatten all descendants of `entityNode` (the node itself is represented
     /// by the entities row). `nextId` allocates globally unique node ids.

@@ -15,11 +15,17 @@ public static class ConsequenceTools
     private static readonly HashSet<string> BlockKeys = new(StringComparer.Ordinal)
     {
         "effect", "immediate", "option", "hidden_effect", "limit",
+        "one_time_effect", "on_add", "on_remove", "completion_reward",
+        "complete_effect", "cancel_effect", "remove_effect", "timeout_effect",
+        "on_navy_leader_won_combat", "on_navy_leader_lost_combat",
     };
 
     private static readonly HashSet<string> ContainerKeys = new(StringComparer.Ordinal)
     {
         "effect", "immediate", "option", "hidden_effect", "if", "else", "else_if", "limit",
+        "one_time_effect", "on_add", "on_remove", "completion_reward",
+        "complete_effect", "cancel_effect", "remove_effect", "timeout_effect",
+        "on_navy_leader_won_combat", "on_navy_leader_lost_combat",
     };
 
     private static readonly HashSet<string> EventEffectKeys = new(StringComparer.Ordinal)
@@ -72,7 +78,9 @@ public static class ConsequenceTools
             new List<string>
             {
                 "Tooltip text is explanatory UI text; analyze_effects reports effects associated with the same effect block and bounded fired-event expansion, not a full game simulation.",
-                "EU4 numeric checks such as check_variable value = 10 generally mean the variable is at least 10.",
+                db.GameId == "hoi4"
+                    ? "Math expressions retain their script tree; runtime-dependent expressions are not evaluated against a save game."
+                    : "EU4 numeric checks such as check_variable value = 10 generally mean the variable is at least 10.",
             });
     }
 
@@ -236,7 +244,8 @@ public static class ConsequenceTools
 
                 var descendants = Descendants(node, nodes).ToList();
                 var hasNestedBlock = childrenByParent.TryGetValue(node.NodeId, out var children) &&
-                                     children.Any(child => child.Key is "option" or "effect" or "immediate");
+                                     children.Any(child => child.Context == "effect" && child.Key is not null &&
+                                         BlockKeys.Contains(child.Key) && child.Key is not ("limit" or "hidden_effect"));
 
                 if (!hasNestedBlock && descendants.Any(n => n.Context == "effect"))
                     yield return node;
@@ -297,13 +306,18 @@ public static class ConsequenceTools
                 .ToList();
         }
 
-        private static bool IsParameterNode(ScriptNodeRow node, Dictionary<long, ScriptNodeRow> byId) =>
-            node.ParentId is long parentId &&
-            byId.TryGetValue(parentId, out var parent) &&
-            parent.Context == "effect" &&
-            parent.Key is not null &&
-            (EventEffectKeys.Contains(parent.Key) || VariableEffectKeys.Contains(parent.Key) ||
-             FlagEffectTargets.ContainsKey(parent.Key) || parent.Key.Contains("modifier", StringComparison.Ordinal));
+        private static bool IsParameterNode(ScriptNodeRow node, Dictionary<long, ScriptNodeRow> byId)
+        {
+            while (node.ParentId is long id && byId.TryGetValue(id, out var parent))
+            {
+                if (parent.Context == "effect" && parent.Key is not null &&
+                    (EventEffectKeys.Contains(parent.Key) || VariableEffectKeys.Contains(parent.Key) ||
+                     FlagEffectTargets.ContainsKey(parent.Key) || parent.Key.Contains("modifier", StringComparison.Ordinal)))
+                    return true;
+                node = parent;
+            }
+            return false;
+        }
 
         private static string? EffectValue(ScriptNodeRow node, List<ScriptNodeRow> nodes)
         {
@@ -314,7 +328,7 @@ public static class ConsequenceTools
                 return FirstChildValue(node, nodes, "name") ?? node.Value;
 
             if (VariableEffectKeys.Contains(node.Key ?? ""))
-                return FirstChildValue(node, nodes, "which") ?? node.Value;
+                return string.Join(", ", BuildVariableChanges(node, nodes).Select(change => change.Key));
 
             if (FlagEffectTargets.ContainsKey(node.Key ?? ""))
                 return FirstChildValue(node, nodes, "flag") ?? node.Value;
@@ -332,15 +346,15 @@ public static class ConsequenceTools
 
         private static List<StateChange> ExtractStateChanges(List<ScriptNodeRow> nodes) => nodes
             .Where(n => n.Context == "effect" && n.Key is not null)
-            .Select(n =>
+            .SelectMany(n =>
             {
                 if (VariableEffectKeys.Contains(n.Key!))
-                    return BuildVariableChange(n, nodes);
+                    return BuildVariableChanges(n, nodes);
 
                 if (FlagEffectTargets.TryGetValue(n.Key!, out var flagTarget))
-                    return new StateChange(flagTarget, FirstChildValue(n, nodes, "flag") ?? n.Value ?? "", FlagOperation(n.Key!), null, n.Context);
+                    return new[] { new StateChange(flagTarget, FirstChildValue(n, nodes, "flag") ?? n.Value ?? "", FlagOperation(n.Key!), null, n.Context) };
 
-                return n.Key switch
+                var change = n.Key switch
                 {
                     "add_country_modifier" or "add_province_modifier" or "add_ruler_modifier" or
                     "add_permanent_province_modifier" or "add_province_triggered_modifier" or
@@ -348,19 +362,24 @@ public static class ConsequenceTools
                         new StateChange("modifier", FirstChildValue(n, nodes, "name") ?? n.Value ?? "", n.Key, FirstChildValue(n, nodes, "duration"), n.Context),
                     _ => null,
                 };
+                return change is null ? Array.Empty<StateChange>() : new[] { change };
             })
             .Where(change => change is not null && !string.IsNullOrWhiteSpace(change.Key))
             .Select(change => change!)
             .ToList();
 
-        private static StateChange? BuildVariableChange(ScriptNodeRow node, List<ScriptNodeRow> nodes)
+        private static IEnumerable<StateChange> BuildVariableChanges(ScriptNodeRow node, List<ScriptNodeRow> nodes)
         {
-            var key = FirstChildValue(node, nodes, "which");
-            var value = FirstChildValue(node, nodes, "value");
-
-            return string.IsNullOrWhiteSpace(key)
-                ? null
-                : new StateChange("variable", key!, node.Key!, value, node.Context);
+            var key = FirstChildValue(node, nodes, "which") ?? FirstChildValue(node, nodes, "var");
+            var children = nodes.Where(child => child.ParentId == node.NodeId).ToList();
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                var value = children.FirstOrDefault(child => child.Key == "value");
+                yield return new StateChange("variable", key, node.Key!, value?.Value ?? (value is null ? null : "expression (see script tree)"), node.Context);
+                yield break;
+            }
+            foreach (var child in children.Where(child => child.Key is not (null or "value" or "tooltip" or "if_zero")))
+                yield return new StateChange("variable", child.Key!, node.Key!, child.Value ?? "expression (see script tree)", node.Context);
         }
 
         private static string FlagOperation(string key) => key.StartsWith("clr_", StringComparison.Ordinal) ? "clear" : "set";
@@ -462,7 +481,7 @@ public static class ConsequenceTools
 
             while (current.ParentId is long parentId && byId.TryGetValue(parentId, out var parent))
             {
-                if (parent.Context == "effect" && parent.Key is "option" or "effect" or "immediate")
+                if (parent.Context == "effect" && parent.Key is not null && BlockKeys.Contains(parent.Key) && parent.Key != "limit")
                     return parent;
 
                 current = parent;

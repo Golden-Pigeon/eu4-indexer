@@ -342,6 +342,9 @@ public sealed class Eu4Database
         "event_modifier" or "static_modifier" or "triggered_modifier" => "modifier",
         "focus" => "focus",
         "focus_tree" => "focus_tree",
+        "grand_doctrine" or "subdoctrine" => "doctrine",
+        "doctrine_folder" => "doctrine_folder",
+        "doctrine_track" => "doctrine_track",
         // identity tokens checked by has_idea/has_reform/... — target_type equals the
         // entity_type (kept in lockstep with GameAdapter.RefKeyRules and the
         // find_by_condition ref_kind allow-list in GraphTools).

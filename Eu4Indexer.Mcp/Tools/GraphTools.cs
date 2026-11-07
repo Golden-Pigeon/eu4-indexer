@@ -119,7 +119,8 @@ public static class GraphTools
               AND r.ref_kind IN ('checks_flag', 'checks_variable', 'calls_scripted_trigger',
                                  'checks_idea', 'checks_idea_group', 'checks_reform',
                                  'checks_building', 'checks_great_project', 'checks_policy',
-                                 'checks_disaster', 'checks_estate_privilege', 'checks_focus')
+                                 'checks_disaster', 'checks_estate_privilege', 'checks_focus',
+                                 'checks_doctrine', 'checks_doctrine_folder', 'checks_doctrine_track')
               AND fe.is_effective = 1
             """
             + (scope is null ? "" : " AND r.target_type = $scope")

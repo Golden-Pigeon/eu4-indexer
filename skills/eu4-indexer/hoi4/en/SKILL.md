@@ -7,7 +7,7 @@ description: >
   paths through focus trees; find likely bugs in trigger/effect logic; and work
   out how to reach a goal or unlock content. Use whenever the user asks about
   HOI4 (or a loaded mod) game content — national focuses, events, decisions,
-  ideas, country leaders, modifiers, flags, mod overrides, localisation — or
+  ideas, doctrines, country leaders, modifiers, flags, mod overrides, localisation — or
   asks "how do I achieve X", "why can't I do Y", or "is this a bug".
 ---
 
@@ -400,6 +400,16 @@ Before concluding "impossible", run both checks:
 ### Query session isolation
 
 Database selection applies only to the current query session. Clients sharing a connection must include `_meta["eu4indexer/sessionId"]` on every tool call. A dedicated client may use `serve --query-session <id>`. Omission preserves legacy connection selection. Do not change another session's selection; release unused sessions with `close_query_session`.
+
+## Doctrines and newer HOI4 script features
+
+- Use `describe_schema` to discover `doctrine_folder`, `grand_doctrine`, `doctrine_track` and `subdoctrine`; locate names through localisation and inspect the full script tree with `explain_entity`.
+- `what_does_it_do` / `what_triggers` include folder membership, every track of a multi-track subdoctrine, XOR exclusions, assignments and mastery targets. `find_by_condition` includes doctrine/folder/track checks and their negation. Grand and subdoctrines share reference target type `doctrine`.
+- An XOR list means alternatives, not additive rewards. Track lists mean eligible tracks; a numeric `set_sub_doctrine.track` is a slot index, not a doctrine-track key. Repeated equipment bonuses retain separate ordered blocks.
+- `resolve_symbol` recognizes concrete names from CWT modifier templates, e.g. `production_cost_arms_factory_factor`. Modifier scopes may contain multiple categories separated by `|`.
+- Ability `one_time_effect`, trait `on_add`/`on_remove`, naval-leader hooks and decision effect blocks are included in `analyze_effects`. New deployed/strategic-region conditions are tagged as triggers.
+- Math expressions remain ordered script trees, not known runtime/save-game values. Inspect `pow`, `root`, `mod`, `lerp`, trigonometry and division `if_zero` in that tree; variable writes support `which`, `var` and shorthand assignment forms. Effect analysis labels expression values explicitly. Do not replace an unevaluated expression with a guessed number.
+- Existing indexes need rules setup plus refresh to obtain the new derived relationships.
 
 ## Setup (if the server isn't connected)
 

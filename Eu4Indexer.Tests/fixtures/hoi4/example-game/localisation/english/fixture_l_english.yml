@@ -12,3 +12,8 @@ l_english:
  fixture_focus_3:0 "Third Fixture Focus"
  fixture_focus_3_desc:0 "A mutually exclusive alternative to focus 2."
  fixture_advisor:0 "Fixture Advisor"
+ fixture_doctrine_folder_name:0 "Custom Doctrine Folder"
+ fixture_grand_doctrine_name:0 "Fixture Grand Doctrine"
+ fixture_grand_doctrine_desc:0 "A synthetic custom doctrine with two tracks."
+ fixture_multi_track_name:0 "Multiple Tracks"
+ fixture_multi_track_desc:0 "A synthetic subdoctrine."

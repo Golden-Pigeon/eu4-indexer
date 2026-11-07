@@ -1,0 +1,12 @@
+fixture_grand_doctrine = {
+    folder = fixture_special_forces
+    name = fixture_grand_doctrine_name
+    description = fixture_grand_doctrine_desc
+    tracks = { fixture_infantry_track fixture_support_track }
+    available = { has_country_flag = fixture_started }
+    modifier = {
+        army_non_core_attack_factor = 0.1
+        production_cost_arms_factory_factor = -0.05
+    }
+    effect = { set_country_flag = fixture_doctrine_selected }
+}

@@ -158,7 +158,11 @@ module ConfigCatalog =
 
         let symbols =
             aliasSymbols @ modifierSymbols
-            |> List.distinctBy (fun (kind, name, _, _) -> kind, (name: string).ToLowerInvariant())
+            |> List.groupBy (fun (kind, name, _, _) -> kind, (name: string).ToLowerInvariant())
+            |> List.map (fun (_, entries) ->
+                let kind, name, _, file = List.head entries
+                let scopes = entries |> List.choose (fun (_, _, scope, _) -> scope) |> List.distinct |> List.sort
+                kind, name, (if scopes.IsEmpty then None else Some(String.concat "|" scopes)), file)
             |> List.mapi (fun i (kind, name, scope, cwtFile) ->
                 { SymbolId = i + 1
                   Name = name
