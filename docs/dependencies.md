@@ -47,3 +47,17 @@ The synthetic HOI4 fixture and `Hoi4RulesUpdateTests` cover these query paths
 without copyrighted game data. Run the complete test suite with both
 `EU4_CONFIG_DIR` and `HOI4_CONFIG_DIR` pointing at the pinned rules; the HOI4
 feature test requires the updated rules.
+
+## Bundled SQLite security baseline
+
+The native SQLite runtime is selected through an explicit
+`SQLitePCLRaw.bundle_e_sqlite3` 2.1.14 dependency, overriding the older transitive
+bundle from Microsoft.Data.Sqlite 9.0.0. The managed provider API and database
+schema remain unchanged. Runtime tests require SQLite 3.50.2 or newer and
+exercise FTS5.
+
+The previous native package 2.1.10 was affected by
+[CVE-2025-6965](https://github.com/advisories/GHSA-2m69-gcr7-jv3q).
+The compatible [2.1.14 bundle](https://www.nuget.org/packages/SQLitePCLRaw.bundle_e_sqlite3/2.1.14)
+retains the 2.x provider and native-package layout. Audit direct and transitive
+NuGet packages before distributing engine binaries.
