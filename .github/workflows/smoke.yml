@@ -52,6 +52,7 @@ jobs:
           "$EXE" index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --mod Eu4Indexer.Tests/fixtures/eu4/example-mod --name withmod
           "$EXE" list
           python3 scripts/mcp-smoke.py "$EXE" vanilla
+          python3 scripts/management-smoke.py "$EXE"
 
       - name: In-process fixture tests (Linux only)
         if: runner.os == 'Linux'
@@ -79,3 +80,4 @@ jobs:
           & $exe index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --mod Eu4Indexer.Tests/fixtures/eu4/example-mod --name withmod
           & $exe list
           python scripts/mcp-smoke.py $exe vanilla
+          python scripts/management-smoke.py $exe

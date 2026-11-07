@@ -9,6 +9,10 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+### Added
+
+- Add the versioned `manage` JSONL API for discovery, rules, immutable index builds, refresh, import, inspection and removal. Add request-scoped MCP database selection using `eu4indexer/sessionId`, `serve --query-session`, and `close_query_session`, preserving existing CLI and legacy MCP behavior. Registry publication is atomic and CLI/management updates are serialized. ([source](Eu4Indexer.Cli/Management.fs), [tests](Eu4Indexer.Tests/DatabaseSelectionTests.cs), [protocol](docs/management.md))
+
 ## [0.3.2] - 2026-06-26
 
 ### Added

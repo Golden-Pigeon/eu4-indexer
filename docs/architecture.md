@@ -103,3 +103,7 @@ against the current .NET SDK / FSharp.Core — because the published NuGet
 (0.3.0, 2019) predates the rule format used by the current Paradox config repos.
 Changes to CWTools itself belong in the fork; update the submodule pointer here
 in a separate, clearly described commit.
+
+## Application management and session selection
+
+`Eu4Indexer.Cli/Management.fs` adapts the existing Discovery, Setup, Pipeline and IndexInputs modules to a versioned one-request JSONL API. It publishes validated immutable files before updating the registry. `DatabaseSelection` stores connection defaults separately from logical session selections. The MCP call filter uses an async request scope so transient database injection resolves the correct immutable artifact for every tool. See [management.md](management.md).

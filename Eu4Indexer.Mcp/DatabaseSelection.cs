@@ -1,82 +1,112 @@
+using System.Collections.Concurrent;
 using Eu4Indexer.Core;
 
 namespace Eu4Indexer.Mcp;
 
 /// <summary>
-/// Holds the database the tools currently query and can switch between the
-/// indexes registered for this installation (~/.eu4indexer/config.json). A
-/// single MCP session can therefore answer questions about different mod sets:
-/// the agent calls list_databases / select_database to pick the right one.
-///
-/// Registered as a singleton; the tools receive <see cref="Eu4Database"/> via a
-/// transient factory that returns <see cref="Current"/>, so they need no changes
-/// and always see the active selection.
+/// Connection-local default selection plus isolated logical query sessions.
+/// The MCP request filter binds a logical session with eu4indexer/sessionId.
+/// Legacy callers continue to use the connection's default selection.
 /// </summary>
 public sealed class DatabaseSelection
 {
-    private readonly Dictionary<string, Eu4Database> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private sealed record Selection(Eu4Database Database, string Name);
+    private readonly ConcurrentDictionary<string, Lazy<Eu4Database>> _cache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Selection> _sessions = new(StringComparer.Ordinal);
+    private readonly AsyncLocal<string?> _session = new();
+    private readonly Selection _initial;
+    private Selection _default;
+    private readonly object _sessionGate = new();
+    private readonly int _maxSessions;
 
-    public Eu4Database Current { get; private set; }
+    public Eu4Database Current => Snapshot.Database;
+    public string CurrentName => Snapshot.Name;
+    public string? SessionId => _session.Value;
+    private Selection Snapshot => _session.Value is { } id
+        ? (_sessions.TryGetValue(id, out var selection) ? selection : _initial)
+        : Volatile.Read(ref _default);
 
-    /// <summary>The registry name of the current database, or "" if ad-hoc.</summary>
-    public string CurrentName { get; private set; }
-
-    public DatabaseSelection(string initialPath)
+    public DatabaseSelection(string initialPath, int maxSessions = 4096)
     {
-        Current = Open(initialPath);
-        CurrentName = NameForPath(initialPath) ?? "";
+        if (maxSessions < 1) throw new ArgumentOutOfRangeException(nameof(maxSessions));
+        _maxSessions = maxSessions;
+        _initial = new Selection(Open(initialPath), NameForPath(initialPath) ?? "");
+        _default = _initial;
+    }
+
+    /// <summary>Bind a request without changing the caller's surrounding async context.</summary>
+    public IDisposable EnterSession(string? id)
+    {
+        if (id is not null)
+        {
+            if (string.IsNullOrWhiteSpace(id) || id.Length > 128 || id.Any(char.IsControl))
+                throw new ArgumentException("Query session ids must contain 1-128 non-control characters.", nameof(id));
+            lock (_sessionGate)
+            {
+                if (!_sessions.ContainsKey(id))
+                {
+                    if (_sessions.Count >= _maxSessions)
+                        throw new InvalidOperationException("Query session limit reached; close unused query sessions.");
+                    _sessions[id] = _initial;
+                }
+            }
+        }
+        var previous = _session.Value;
+        _session.Value = id;
+        return new Restore(() => _session.Value = previous);
+    }
+
+    private sealed class Restore(Action action) : IDisposable
+    {
+        private Action? _action = action;
+        public void Dispose() => Interlocked.Exchange(ref _action, null)?.Invoke();
+    }
+
+    /// <summary>Reset a named session; already executing requests keep their resolved database.</summary>
+    public bool CloseSession(string id)
+    {
+        lock (_sessionGate) return _sessions.TryRemove(id, out _);
     }
 
     private Eu4Database Open(string path)
     {
-        var key = path.Replace('\\', '/');
-
-        if (_cache.TryGetValue(key, out var cached))
-            return cached;
-
-        var db = new Eu4Database(path);
-        db.EnsureSchemaVersion();
-        _cache[key] = db;
-        return db;
+        var key = Path.GetFullPath(path);
+        var lazy = _cache.GetOrAdd(key, p => new Lazy<Eu4Database>(() =>
+        {
+            var db = new Eu4Database(p);
+            db.EnsureSchemaVersion();
+            return db;
+        }));
+        try { return lazy.Value; }
+        catch { _cache.TryRemove(new KeyValuePair<string, Lazy<Eu4Database>>(key, lazy)); throw; }
     }
 
     private static string? NameForPath(string path)
     {
-        var normalized = path.Replace('\\', '/');
-
-        foreach (var entry in Registry.load().Databases)
-            if (string.Equals(entry.Path.Replace('\\', '/'), normalized, StringComparison.OrdinalIgnoreCase))
-                return entry.Name;
-
-        return null;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return Registry.load().Databases.FirstOrDefault(e =>
+            string.Equals(Path.GetFullPath(e.Path), Path.GetFullPath(path), comparison))?.Name;
     }
 
-    /// <summary>The indexes known to this installation, marking the active one.</summary>
-    public List<DatabaseInfo> List() =>
-        Registry.load().Databases
-            .Select(e => new DatabaseInfo(e.Name, e.Game, e.Sources, e.IndexedAt, e.Name == CurrentName))
-            .ToList();
+    public List<DatabaseInfo> List()
+    {
+        var selected = CurrentName;
+        return Registry.load().Databases.Select(e =>
+            new DatabaseInfo(e.Name, e.Game, e.Sources, e.IndexedAt, e.Name == selected)).ToList();
+    }
 
-    /// <summary>
-    /// Make a registered index active by name. Returns a human-readable result
-    /// (the tool surfaces it to the agent rather than throwing).
-    /// </summary>
     public string Select(string name)
     {
         var entry = Registry.load().Databases.FirstOrDefault(e => e.Name == name);
-
         if (entry is null)
             return $"error: no registered index named '{name}'. Call list_databases to see the options.";
-
         try
         {
-            Current = Open(entry.Path);
-            CurrentName = entry.Name;
+            var selection = new Selection(Open(entry.Path), entry.Name);
+            if (_session.Value is { } id) _sessions[id] = selection;
+            else Volatile.Write(ref _default, selection);
             return $"Selected '{name}' ({entry.Game}, {entry.Sources} sources).";
         }
-        catch (Exception ex)
-        {
-            return $"error: could not open index '{name}': {ex.Message}";
-        }
+        catch (Exception ex) { return $"error: could not open index '{name}': {ex.Message}"; }
     }
 }
