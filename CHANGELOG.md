@@ -11,6 +11,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Changed
 
+- Trace direct and weighted event lists nested inside HOI4 naval-leader hooks, in addition to effect-fired events. ([implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
+
 - Update HOI4 rules to [`297dd69c`](https://github.com/cwtools/cwtools-hoi4-config/commit/297dd69c42aabe10078a8b7ab7f2d07ee631d4ef) and support custom doctrine folders, multi-track/XOR relationships, assignment and mastery references, new effect contexts, generated modifier identifiers and math-expression variable writes in indexing and MCP analysis. Preserve existing schema/CLI behavior; refresh indexes for the new derived data. CWTools and EU4 rule pins were already current. ([coverage](docs/dependencies.md), [implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
 
 ### Added

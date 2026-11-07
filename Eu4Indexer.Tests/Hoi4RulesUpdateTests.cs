@@ -51,6 +51,10 @@ public class Hoi4RulesUpdateTests
                 change => change.Key == "fixture_mastery" && change.Value == "expression (see script tree)");
             Assert.DoesNotContain(doctrineEffects.Blocks.SelectMany(block => block.DirectEffects), effect => effect.Key == "pow");
             Assert.Contains(GraphTools.WhatTriggers(db, "fixture.3", "event")!.TriggeredBy, e => e.FromType == "on_action");
+            Assert.Contains(GraphTools.WhatTriggers(db, "fixture.1", "event")!.TriggeredBy,
+                e => e.FromType == "on_action" && e.RefKind == "on_action_fires");
+            Assert.Contains(GraphTools.WhatTriggers(db, "fixture.2", "event")!.TriggeredBy,
+                e => e.FromType == "on_action" && e.RefKind == "on_action_fires");
 
             Assert.Equal(1, Count("SELECT count(*) FROM script_nodes n JOIN symbols s ON s.symbol_id=n.symbol_id WHERE n.key='is_deployed' AND n.context='trigger' AND s.kind='trigger'"));
             Assert.Equal(1, Count("SELECT count(*) FROM script_nodes n JOIN symbols s ON s.symbol_id=n.symbol_id WHERE n.key='is_fighting_in_strategic_region' AND s.kind='trigger'"));

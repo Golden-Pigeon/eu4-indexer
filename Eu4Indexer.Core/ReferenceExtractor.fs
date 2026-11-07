@@ -177,7 +177,7 @@ module ReferenceExtractor =
             else
                 nodes
                 |> List.filter (fun n ->
-                    n.Depth = 0 && (keyEquals n.Key "events" || keyEquals n.Key "random_events"))
+                    keyEquals n.Key "events" || keyEquals n.Key "random_events")
                 |> List.collect (fun listNode ->
                     Map.tryFind listNode.NodeId childrenOf
                     |> Option.defaultValue []
