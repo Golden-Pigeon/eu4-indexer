@@ -9,15 +9,19 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+### Fixed
+
+- Update the bundled SQLitePCLRaw runtime to `2.1.14` for the SQLite security baseline, retaining native FTS5 support and adding a runtime-version regression. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
+
 ### Changed
 
-- Trace direct and weighted event lists nested inside HOI4 naval-leader hooks, in addition to effect-fired events. ([implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
+- Trace direct and weighted event lists nested inside HOI4 naval-leader hooks, in addition to effect-fired events. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10), [implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
 
-- Update HOI4 rules to [`297dd69c`](https://github.com/cwtools/cwtools-hoi4-config/commit/297dd69c42aabe10078a8b7ab7f2d07ee631d4ef) and support custom doctrine folders, multi-track/XOR relationships, assignment and mastery references, new effect contexts, generated modifier identifiers and math-expression variable writes in indexing and MCP analysis. Preserve existing schema/CLI behavior; refresh indexes for the new derived data. CWTools and EU4 rule pins were already current. ([coverage](docs/dependencies.md), [implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
+- Update HOI4 rules to [`297dd69c`](https://github.com/cwtools/cwtools-hoi4-config/commit/297dd69c42aabe10078a8b7ab7f2d07ee631d4ef) and support custom doctrine folders, multi-track/XOR relationships, assignment and mastery references, new effect contexts, generated modifier identifiers and math-expression variable writes in indexing and MCP analysis. Preserve existing schema/CLI behavior; refresh indexes for the new derived data. CWTools and EU4 rule pins were already current. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10), [coverage](docs/dependencies.md), [implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
 
 ### Added
 
-- Add the versioned `manage` JSONL API for discovery, rules, immutable index builds, refresh, import, inspection and removal. Add request-scoped MCP database selection using `eu4indexer/sessionId`, `serve --query-session`, and `close_query_session`, preserving existing CLI and legacy MCP behavior. Registry publication is atomic and CLI/management updates are serialized. ([1b9a8ad](https://github.com/Golden-Pigeon/eu4-indexer/commit/1b9a8ad), [tests](Eu4Indexer.Tests/DatabaseSelectionTests.cs), [protocol](docs/management.md))
+- Add the versioned `manage` JSONL API for discovery, rules, immutable index builds, refresh, import, inspection and removal. Add request-scoped MCP database selection using `eu4indexer/sessionId`, `serve --query-session`, and `close_query_session`, preserving existing CLI and legacy MCP behavior. Registry publication is atomic and CLI/management updates are serialized. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10), [tests](Eu4Indexer.Tests/DatabaseSelectionTests.cs), [protocol](docs/management.md))
 
 ## [0.3.2] - 2026-06-26
 
