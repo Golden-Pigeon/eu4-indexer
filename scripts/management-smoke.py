@@ -30,14 +30,18 @@ def main():
             return events[-1]["data"]
 
         assert request({"operation": "capabilities"})["apiVersion"] == 1
+        built = {}
         for game in ("eu4", "hoi4"):
             config = os.environ.get(game.upper() + "_CONFIG_DIR", str(rules / game))
             result = request({"operation": "index", "game": game, "name": game,
                               "gameDir": str(root / "Eu4Indexer.Tests" / "fixtures" / game / "example-game"),
                               "configDir": config, "languages": ["english"]})
+            built[game] = result["index"]["path"]
             assert result["report"]["entityCount"] > 0
             assert result["report"]["foreignKeyViolations"] == 0
         before = {db["name"]: db for db in request({"operation": "list"})["databases"]}
+        for game, path in built.items():
+            assert before[game]["path"] == path, (before[game]["path"], path)
         refreshed = request({"operation": "refresh", "name": "eu4"})["index"]
         assert refreshed["path"] != before["eu4"]["path"]
         assert Path(before["eu4"]["path"]).is_file()
@@ -45,7 +49,8 @@ def main():
         after = {db["name"]: db for db in request({"operation": "list"})["databases"]}
         assert after["eu4"]["path"] == refreshed["path"]
         assert request({"operation": "inspect", "name": "hoi4"})["meta"]["game_id"] == "hoi4"
-        request({"operation": "register", "name": "copy", "path": before["eu4"]["path"]})
+        copied = request({"operation": "register", "name": "copy", "path": before["eu4"]["path"]})
+        assert copied["path"] == before["eu4"]["path"]
         request({"operation": "remove", "name": "copy"})
         assert Path(before["eu4"]["path"]).is_file()
     print("management smoke passed (EU4 + HOI4)")
