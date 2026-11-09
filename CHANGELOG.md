@@ -11,6 +11,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Fixed
 
+- Move the macOS smoke job from the retired `macos-14` image to supported `macos-15`, retaining Linux, macOS and Windows coverage. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
+
 - Update the bundled SQLitePCLRaw runtime to `2.1.14` for the SQLite security baseline, retaining native FTS5 support and adding a runtime-version regression. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
 
 ### Changed
