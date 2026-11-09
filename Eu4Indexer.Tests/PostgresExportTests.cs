@@ -85,9 +85,7 @@ public class PostgresExportTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 

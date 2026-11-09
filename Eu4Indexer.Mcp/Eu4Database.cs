@@ -27,6 +27,8 @@ public sealed class Eu4Database
         {
             DataSource = dbPath,
             Mode = SqliteOpenMode.ReadOnly,
+            // Release the native file handle when each query finishes.
+            Pooling = false,
         }.ToString();
 
         _gameId = new Lazy<string>(() =>

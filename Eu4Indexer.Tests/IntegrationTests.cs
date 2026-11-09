@@ -62,9 +62,7 @@ public class IntegrationTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 
@@ -102,9 +100,7 @@ public class IntegrationTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 
@@ -152,9 +148,7 @@ public class IntegrationTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 
@@ -210,9 +204,7 @@ public class IntegrationTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 

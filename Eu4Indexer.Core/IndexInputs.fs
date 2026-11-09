@@ -62,7 +62,7 @@ module IndexInputs =
           AutoModsKey, (if autoMods then "1" else "0") ]
 
     let private readMeta (dbPath: string) : Map<string, string> =
-        use conn = new SqliteConnection(sprintf "Data Source=%s;Mode=ReadOnly" dbPath)
+        use conn = new SqliteConnection(sprintf "Data Source=%s;Mode=ReadOnly;Pooling=False" dbPath)
         conn.Open()
         use cmd = conn.CreateCommand()
         cmd.CommandText <- "SELECT key, value FROM meta"

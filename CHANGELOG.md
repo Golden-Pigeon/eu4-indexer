@@ -11,6 +11,10 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Fixed
 
+- Close MCP query and refresh-input SQLite handles after each read, allowing database files to be removed and replaced without stale pooled reads or Windows file locks. ([query reader](Eu4Indexer.Mcp/Eu4Database.cs), [input reader](Eu4Indexer.Core/IndexInputs.fs), [tests](Eu4Indexer.Tests/DatabaseFileLifetimeTests.cs))
+
+- Release pooled SQLite handles before deleting temporary test databases on Windows, with a native-handle regression and in-process fixture tests on all three CI platforms. ([cleanup](Eu4Indexer.Tests/SqliteTestDatabase.cs), [tests](Eu4Indexer.Tests/SqliteTestDatabaseTests.cs))
+
 - Return the same normalized absolute index paths from management build, refresh and register responses as from the registry list on Windows. Extend the three-platform management smoke checks to compare these paths. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
 
 - Move the macOS smoke job from the retired `macos-14` image to supported `macos-15`, retaining Linux, macOS and Windows coverage. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
