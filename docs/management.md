@@ -69,3 +69,5 @@ also exercises the JSONL protocol and real multiplexed MCP calls against both
 copyright-safe game fixtures.
 
 `scripts/management-smoke.py <executable>` runs the JSONL build/refresh/import lifecycle against both game fixtures after rules setup; the existing three-platform smoke workflow runs it alongside the original CLI/MCP smoke.
+
+Index entries returned by `index`, `refresh`, `register` and `list` use the same absolute path spelling, normalized to forward slashes on all platforms, including Windows.

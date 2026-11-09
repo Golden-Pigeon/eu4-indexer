@@ -11,6 +11,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Fixed
 
+- Return the same normalized absolute index paths from management build, refresh and register responses as from the registry list on Windows. Extend the three-platform management smoke checks to compare these paths. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
+
 - Move the macOS smoke job from the retired `macos-14` image to supported `macos-15`, retaining Linux, macOS and Windows coverage. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
 
 - Update the bundled SQLitePCLRaw runtime to `2.1.14` for the SQLite security baseline, retaining native FTS5 support and adding a runtime-version regression. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))

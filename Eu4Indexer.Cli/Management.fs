@@ -107,7 +107,7 @@ module Management =
         use cmd = c.CreateCommand()
         cmd.CommandText <- "SELECT COUNT(*) FROM sources"
         let entry: Registry.DbEntry =
-            { Name = name; Game = game; Path = Path.GetFullPath path; SchemaVersion = info.schemaVersion
+            { Name = name; Game = game; Path = AppPaths.normalize (Path.GetFullPath path); SchemaVersion = info.schemaVersion
               Sources = Convert.ToInt32(cmd.ExecuteScalar()); IndexedAt = DateTime.UtcNow.ToString("o") }
         withLock (fun () -> Registry.upsert entry active)
         entry
