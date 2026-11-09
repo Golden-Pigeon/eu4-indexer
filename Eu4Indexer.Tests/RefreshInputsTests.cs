@@ -48,7 +48,7 @@ public class RefreshInputsTests
         }
         finally
         {
-            File.Delete(dbPath);
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 
@@ -147,9 +147,7 @@ public class RefreshInputsTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 }

@@ -76,9 +76,7 @@ public class Hoi4FixtureIndexTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 
@@ -130,9 +128,7 @@ public class Hoi4FixtureIndexTests
         }
         finally
         {
-            File.Delete(dbPath);
-            File.Delete(dbPath + "-wal");
-            File.Delete(dbPath + "-shm");
+            SqliteTestDatabase.Delete(dbPath);
         }
     }
 }

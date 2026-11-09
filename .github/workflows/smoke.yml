@@ -54,14 +54,6 @@ jobs:
           python3 scripts/mcp-smoke.py "$EXE" vanilla
           python3 scripts/management-smoke.py "$EXE"
 
-      - name: In-process fixture tests (Linux only)
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          EU4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/eu4
-          HOI4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/hoi4
-        run: dotnet test -c Release
-
       - name: Build, install, and smoke-test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -82,3 +74,9 @@ jobs:
           & $exe list
           python scripts/mcp-smoke.py $exe vanilla
           python scripts/management-smoke.py $exe
+
+      - name: In-process fixture tests
+        env:
+          EU4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/eu4
+          HOI4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/hoi4
+        run: dotnet test -c Release
