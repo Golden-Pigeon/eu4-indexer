@@ -25,7 +25,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Changed
 
-- Bundle pinned EU4 and HOI4 rule submodules in every engine build and release. Remove the separate `setup` CLI/API and update rules with the engine; refresh follows current bundled rules while preserving external overrides. ([build](Eu4Indexer.Core/Eu4Indexer.Core.fsproj), [paths](Eu4Indexer.Core/AppPaths.fs), [tests](Eu4Indexer.Tests/BundledRulesTests.cs))
+- Bundle pinned EU4 and HOI4 rule submodules in every engine build and release. Remove the separate `setup` CLI/API and update rules with the engine; refresh follows current bundled rules while preserving external overrides. ([#12](https://github.com/Golden-Pigeon/eu4-indexer/pull/12))
 
 - Trace direct and weighted event lists nested inside HOI4 naval-leader hooks, in addition to effect-fired events. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10), [implementation](Eu4Indexer.Core/ReferenceExtractor.fs), [tests](Eu4Indexer.Tests/Hoi4RulesUpdateTests.cs))
 
