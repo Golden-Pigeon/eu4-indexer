@@ -5,6 +5,7 @@ Run against an engine with bundled rules: python scripts/management-smoke.py <eu
 Uses a temporary home and the engine's bundled rules.
 """
 import json
+from contextlib import closing
 import os
 from pathlib import Path
 import subprocess
@@ -49,7 +50,8 @@ def main():
             assert before[game]["path"] == path, (before[game]["path"], path)
         for game, path in built.items():
             assert request({"operation": "inspect", "name": game})["meta"]["config_source"] == "bundled"
-            with sqlite3.connect(path) as db:
+            # The sqlite context manager commits but does not close the handle.
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("UPDATE meta SET value = ? WHERE key = 'config_repo_path'", (str(Path(home) / "obsolete-engine" / game),))
         refreshed = request({"operation": "refresh", "name": "eu4"})["index"]
         request({"operation": "refresh", "name": "hoi4"})
