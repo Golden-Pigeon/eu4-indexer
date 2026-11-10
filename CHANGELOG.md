@@ -9,11 +9,13 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
 ### Fixed
 
-- Close MCP query and refresh-input SQLite handles after each read, allowing database files to be removed and replaced without stale pooled reads or Windows file locks. ([query reader](Eu4Indexer.Mcp/Eu4Database.cs), [input reader](Eu4Indexer.Core/IndexInputs.fs), [tests](Eu4Indexer.Tests/DatabaseFileLifetimeTests.cs))
+- Close MCP query and refresh-input SQLite handles after each read, allowing database files to be removed and replaced without stale pooled reads or Windows file locks. ([#11](https://github.com/Golden-Pigeon/eu4-indexer/pull/11))
 
-- Release pooled SQLite handles before deleting temporary test databases on Windows, with a native-handle regression and in-process fixture tests on all three CI platforms. ([cleanup](Eu4Indexer.Tests/SqliteTestDatabase.cs), [tests](Eu4Indexer.Tests/SqliteTestDatabaseTests.cs))
+- Release pooled SQLite handles before deleting temporary test databases on Windows, with a native-handle regression and in-process fixture tests on all three CI platforms. ([#11](https://github.com/Golden-Pigeon/eu4-indexer/pull/11))
 
 - Return the same normalized absolute index paths from management build, refresh and register responses as from the registry list on Windows. Extend the three-platform management smoke checks to compare these paths. ([#10](https://github.com/Golden-Pigeon/eu4-indexer/pull/10))
 
@@ -231,7 +233,8 @@ Initial release — an EU4 script indexer with a query layer for agents.
   [c23cdfd](https://github.com/Golden-Pigeon/eu4-indexer/commit/c23cdfd),
   [6f69b1d](https://github.com/Golden-Pigeon/eu4-indexer/commit/6f69b1d)).
 
-[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.2.0...v0.3.0
