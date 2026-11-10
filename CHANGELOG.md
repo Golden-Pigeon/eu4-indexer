@@ -13,6 +13,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ### Fixed
 
+- Close the management smoke test's Python SQLite connections before temporary database cleanup, including on Windows. ([#12](https://github.com/Golden-Pigeon/eu4-indexer/pull/12))
+
 - Close MCP query and refresh-input SQLite handles after each read, allowing database files to be removed and replaced without stale pooled reads or Windows file locks. ([#11](https://github.com/Golden-Pigeon/eu4-indexer/pull/11))
 
 - Release pooled SQLite handles before deleting temporary test databases on Windows, with a native-handle regression and in-process fixture tests on all three CI platforms. ([#11](https://github.com/Golden-Pigeon/eu4-indexer/pull/11))
