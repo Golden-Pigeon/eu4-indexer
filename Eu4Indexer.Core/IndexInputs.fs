@@ -87,7 +87,11 @@ module IndexInputs =
         let optNonEmpty k = Map.tryFind k meta |> Option.bind (fun v -> if v = "" then None else Some v)
 
         { GameId = getOr "game_id" "eu4"
-          ConfigDir = getOr "config_repo_path" ""
+          ConfigDir =
+              let path = getOr "config_repo_path" ""
+              if getOr "config_source" "" = "bundled" ||
+                 (getOr "config_source" "" = "" && AppPaths.isLegacyManagedConfig (getOr "game_id" "eu4") path) then ""
+              else path
           Languages = getOr "languages" "" |> splitOn ','
           SkipGeneric = getOr "skip_generic" "0" = "1"
           WithFts = getOr "with_fts" "1" = "1"

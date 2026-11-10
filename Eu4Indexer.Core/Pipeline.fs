@@ -419,6 +419,7 @@ module Pipeline =
             [ "indexer_version", AppInfo.Version
               "game_id", adapter.GameId
               "config_repo_path", request.ConfigDir
+              "config_source", (if AppPaths.isBundledConfig adapter.GameId request.ConfigDir then "bundled" else "external")
               "languages", String.concat "," languages
               "skip_generic", (if request.SkipGeneric then "1" else "0")
               "with_fts", (if request.WithFts then "1" else "0")

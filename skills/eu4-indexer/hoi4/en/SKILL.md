@@ -409,7 +409,7 @@ Database selection applies only to the current query session. Clients sharing a 
 - `resolve_symbol` recognizes concrete names from CWT modifier templates, e.g. `production_cost_arms_factory_factor`. Modifier scopes may contain multiple categories separated by `|`.
 - Ability `one_time_effect`, trait `on_add`/`on_remove`, naval-leader hooks and decision effect blocks are included in `analyze_effects`. New deployed/strategic-region conditions are tagged as triggers.
 - Math expressions remain ordered script trees, not known runtime/save-game values. Inspect `pow`, `root`, `mod`, `lerp`, trigonometry and division `if_zero` in that tree; variable writes support `which`, `var` and shorthand assignment forms. Effect analysis labels expression values explicitly. Do not replace an unevaluated expression with a guessed number.
-- Existing indexes need rules setup plus refresh to obtain the new derived relationships.
+- Rules are bundled with the engine. Update it and refresh existing indexes to obtain the new derived relationships.
 
 ## Setup (if the server isn't connected)
 
@@ -418,7 +418,7 @@ Build an index, then register the server:
 ```bash
 eu4indexer index --game hoi4 \
   --game-dir /path/to/hoi4 --mod /path/to/mod \
-  --config-dir /path/to/cwtools-hoi4-config --db hoi4.db
+  --db hoi4.db
 
 eu4indexer serve --db /path/to/hoi4.db
 ```

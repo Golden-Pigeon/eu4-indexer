@@ -4,9 +4,8 @@ open System
 open System.IO
 
 /// On-disk layout of an eu4indexer installation. Defaults to ~/.eu4indexer
-/// (override with EU4INDEXER_HOME). The config and db directories are
-/// namespaced by game id so additional games (CK3 / HOI4 / Stellaris / VIC3)
-/// can coexist without colliding.
+/// (override with EU4INDEXER_HOME). User data is separate from the immutable
+/// game rules distributed beside each engine build.
 module AppPaths =
 
     [<Literal>]
@@ -24,8 +23,24 @@ module AppPaths =
     /// The registry file recording known databases and the active one.
     let configFile () = Path.Combine(home (), "config.json")
 
-    /// cwtools config rules for a game, e.g. ~/.eu4indexer/config/eu4.
-    let configDir (gameId: string) = Path.Combine(home (), "config", gameId)
+    /// Rules are copied into build and publish output by the Core project.
+    let bundledConfigDir (gameId: string) = Path.Combine(AppContext.BaseDirectory, "rules", gameId)
+
+    /// Explicit game-specific overrides take precedence over the bundled rules.
+    let configDir (gameId: string) =
+        match Environment.GetEnvironmentVariable(gameId.ToUpperInvariant() + "_CONFIG_DIR") with
+        | null | "" -> bundledConfigDir gameId
+        | dir -> Path.GetFullPath dir
+
+    let samePath (left: string) (right: string) =
+        let comparison = if OperatingSystem.IsWindows() then StringComparison.OrdinalIgnoreCase else StringComparison.Ordinal
+        String.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath left), Path.TrimEndingDirectorySeparator(Path.GetFullPath right), comparison)
+
+    let isBundledConfig (gameId: string) (dir: string) = samePath dir (bundledConfigDir gameId)
+
+    /// Recognize old downloaded defaults without altering user files.
+    let isLegacyManagedConfig (gameId: string) (dir: string) =
+        dir <> "" && samePath dir (Path.Combine(home (), "config", gameId)) && File.Exists(Path.Combine(dir, ".eu4indexer-ref"))
 
     /// Default output directory for a game's indexes, e.g. ~/.eu4indexer/db/eu4.
     let dbDir (gameId: string) = Path.Combine(home (), "db", gameId)

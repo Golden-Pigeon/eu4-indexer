@@ -58,7 +58,7 @@ module Management =
         if not pw.IsEmpty || not aw.IsEmpty then invalidOp (String.concat "; " (pw @ aw))
         explicit @ workshop @ playset @ auto
     let private configDir game r =
-        str "configDir" (AppPaths.configDir game) r |> Path.GetFullPath
+        opt "configDir" r |> Option.defaultWith (fun () -> AppPaths.configDir game) |> Path.GetFullPath
     let private dbEntry name =
         Registry.load() |> Registry.findByName name |> Option.defaultWith (fun () -> invalidArg "name" ("Unknown index: " + name))
     let private connection path =
@@ -117,7 +117,7 @@ module Management =
         let gameDir = Discovery.resolveGameDir a Discovery.realProbe (opt "gameDir" r) |> unwrap
         let mods = resolveMods a r
         let cfg = configDir a.GameId r
-        if not (Directory.Exists cfg) then invalidOp "Config rules are missing; run setup first"
+        if not (Directory.Exists cfg) then invalidOp "Config rules are missing; reinstall the engine or provide configDir"
         let dir = AppPaths.ensureDir (AppPaths.dbDir a.GameId)
         let id = Guid.NewGuid().ToString("N")
         let staging = Path.Combine(dir, name + "-" + id + ".building")
@@ -156,7 +156,7 @@ module Management =
         match str "operation" "capabilities" r with
         | "capabilities" -> box {| engineVersion = AppInfo.Version; schemaVersion = Schema.UserVersion; apiVersion = 1
                                    games = [| "eu4"; "hoi4" |]; querySessionMetadata = "eu4indexer/sessionId"
-                                   operations = [| "capabilities"; "status"; "detect"; "workshop"; "playsets"; "list"; "inspect"; "setup"; "index"; "refresh"; "register"; "remove" |] |}
+                                   operations = [| "capabilities"; "status"; "detect"; "workshop"; "playsets"; "list"; "inspect"; "index"; "refresh"; "register"; "remove" |] |}
         | "status" -> box {| home = AppPaths.home(); engineVersion = AppInfo.Version; schemaVersion = Schema.UserVersion
                              games = GameAdapter.allAdapters |> List.map (fun a -> {| game = a.GameId; configDir = AppPaths.configDir a.GameId; configReady = Directory.Exists(AppPaths.configDir a.GameId) |}) |> List.toArray |}
         | "list" -> box (Registry.load())
@@ -200,10 +200,6 @@ module Management =
                 SqliteConnection.ClearAllPools()
                 File.Delete entry.Path
             box {| removed = name |}
-        | "setup" ->
-            let a = adapter r
-            Setup.fetchConfig a.GameId (opt "ref" r) (fun message -> emit "log" {| message = message |}) |> unwrap |> ignore
-            box {| game = a.GameId; configDir = AppPaths.configDir a.GameId |}
         | "index" -> build r
         | "refresh" -> refresh r
         | op -> invalidArg "operation" ("Unknown management operation: " + op)

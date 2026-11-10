@@ -396,7 +396,7 @@ SELECT value FROM v_effective_defines WHERE define_key = 'NFocus.FOCUS_POINT_DAY
 - `resolve_symbol` 支持 CWT 模板生成的实际修正名，例如 `production_cost_arms_factory_factor`。修正的多个作用类别以 `|` 分隔。
 - `analyze_effects` 支持能力的 `one_time_effect`、特质的 `on_add`/`on_remove`、海军将领钩子与决议效果块；新增部署和战略区域条件按触发器标记。
 - 数学表达式保留有序脚本树，不代表已知的运行时或存档数值。通过脚本树检查 `pow`、`root`、`mod`、`lerp`、三角函数和除法 `if_zero`；变量写入支持 `which`、`var` 和简写赋值。效果分析会明确标注表达式，不得凭空给出计算结果。
-- 已有索引需要安装更新后的规则并刷新，才能获得新增派生关系。
+- 规则随引擎提供和更新；更新引擎后刷新已有索引，才能获得新增派生关系。
 
 ## 设置（如果服务器未连接）
 
@@ -405,7 +405,7 @@ SELECT value FROM v_effective_defines WHERE define_key = 'NFocus.FOCUS_POINT_DAY
 ```bash
 eu4indexer index --game hoi4 \
   --game-dir /path/to/hoi4 --mod /path/to/mod \
-  --config-dir /path/to/cwtools-hoi4-config --db hoi4.db
+  --db hoi4.db
 
 eu4indexer serve --db /path/to/hoi4.db
 ```

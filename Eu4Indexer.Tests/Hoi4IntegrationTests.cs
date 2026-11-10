@@ -11,7 +11,7 @@ namespace Eu4Indexer.Tests;
 /// example mod) — the HOI4 analogue of <see cref="IntegrationTests"/>. No-ops when
 /// the game data is absent, so the suite stays green without it. Enable by setting
 /// HOI4_GAME_DIR (and optionally HOI4_CONFIG_DIR / HOI4_EXAMPLE_MOD_DIR) in .env or
-/// the environment; the config otherwise comes from `eu4indexer setup`.
+/// the environment; rules are bundled with the engine.
 /// </summary>
 public class Hoi4IntegrationTests
 {

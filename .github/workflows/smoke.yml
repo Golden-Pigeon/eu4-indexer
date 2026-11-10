@@ -2,7 +2,7 @@ name: smoke
 
 # Builds the self-contained binary, installs it via the release install script
 # (local/offline mode, so no published release is needed), and drives the whole
-# user flow — setup, index, serve — on all three platforms. Indexing runs against
+# user flow — index, serve — on all three platforms. Indexing runs against
 # the repo's synthetic example fixture, never real game files (no copyright risk).
 
 on:
@@ -20,8 +20,8 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-15]
     runs-on: ${{ matrix.os }}
     env:
-      # Single install root for the whole job, so install/setup/index/serve all
-      # share one registry and config.
+      # Single install root for the whole job, so install/index/serve all
+      # share one registry; rules come from the installed engine.
       EU4INDEXER_HOME: ${{ github.workspace }}/.eu4home
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +47,6 @@ jobs:
           EXE="$EU4INDEXER_HOME/bin/eu4indexer"
 
           "$EXE" version
-          "$EXE" setup
           "$EXE" index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --name vanilla
           "$EXE" index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --mod Eu4Indexer.Tests/fixtures/eu4/example-mod --name withmod
           "$EXE" list
@@ -68,7 +67,6 @@ jobs:
           $exe = Join-Path $env:EU4INDEXER_HOME 'bin/eu4indexer.exe'
 
           & $exe version
-          & $exe setup
           & $exe index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --name vanilla
           & $exe index --game eu4 --game-dir Eu4Indexer.Tests/fixtures/eu4/example-game --mod Eu4Indexer.Tests/fixtures/eu4/example-mod --name withmod
           & $exe list
@@ -76,7 +74,4 @@ jobs:
           python scripts/management-smoke.py $exe
 
       - name: In-process fixture tests
-        env:
-          EU4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/eu4
-          HOI4_CONFIG_DIR: ${{ github.workspace }}/.eu4home/config/hoi4
         run: dotnet test -c Release

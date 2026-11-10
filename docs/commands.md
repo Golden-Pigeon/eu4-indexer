@@ -17,11 +17,10 @@ SUBCOMMANDS:
     workshop    list installed Steam Workshop items (id and mod name)
     playset     list launcher playsets, or the mods of one playset
     serve       run the read-only MCP server over stdio
-    setup       download the cwtools config rules for the game into ~/.eu4indexer/config/<game>
     install     register the MCP server + skill with local agents (Claude Code, Codex)
     use         set the active index (by registry name) the MCP server serves by default
     list        list registered indexes (* marks the active one)
-    update      self-update the eu4indexer binary to the latest release and update stale config
+    update      self-update the engine and bundled rules to the latest release
     version     print the eu4indexer version and exit
 ```
 
@@ -56,9 +55,13 @@ per-game detail tables are written.
 
 ### Config rules
 
-The CWTools config repo is resolved from `--config-dir` / `-c`, then
-`$EU4_CONFIG_DIR`, then the game-namespaced install dir
-`~/.eu4indexer/config/<game>` (populated by `eu4indexer setup`).
+Rules are resolved from `--config-dir` / `-c`, then the selected game's
+`EU4_CONFIG_DIR` or `HOI4_CONFIG_DIR` environment override, then
+`rules/<game>/` beside the engine. Both pinned rule repositories ship with every
+build. No separate rule download is required. Default-rule refreshes use the
+currently installed engine; explicit external directories remain selected.
+Legacy managed rule paths with an `.eu4indexer-ref` marker migrate to bundled
+rules when refreshed; the old files are preserved.
 
 ---
 
@@ -73,7 +76,7 @@ Parse the game + mods and write the index.
 | `--workshop-id`, `-w` | Steam Workshop item id to include as a mod; repeatable |
 | `--playset`, `-p` | launcher playset name or id; indexes its enabled mods in load order |
 | `--auto-mods` | auto-discover enabled mods from the launcher / mod dir |
-| `--config-dir`, `-c` | cwtools config repo dir (default: `$EU4_CONFIG_DIR`, then `~/.eu4indexer/config/<game>`) |
+| `--config-dir`, `-c` | external rules directory (default: game-specific environment override, then bundled `rules/<game>/`) |
 | `--db`, `-o` | output target: a SQLite file path, or a PostgreSQL connection string. Default: `~/.eu4indexer/db/<game>/<name>.db` |
 | `--name`, `-n` | registry name for this index (default: `default`); the default db file is named after it |
 | `--languages` | comma-separated localisation languages (default: all) |
@@ -91,16 +94,15 @@ local files the MCP server reads).
 
 ```bash
 # Auto-detect the game, index vanilla, register as active
-eu4indexer index --config-dir /path/to/cwtools-eu4-config
+eu4indexer index
 
 # Index with explicit mods, in load order, into a named index
 eu4indexer index \
     --mod /path/to/mod_a --mod /path/to/mod_b \
-    --config-dir /path/to/cwtools-eu4-config \
     --name my-playset --verbose
 
 # HOI4
-eu4indexer index --game hoi4 --config-dir /path/to/cwtools-hoi4-config
+eu4indexer index --game hoi4
 ```
 
 ### Export target (SQLite or PostgreSQL)
@@ -251,23 +253,6 @@ Registered index 'default' (active) at …/out.db
 
 ---
 
-## `setup`
-
-Download the CWTools config rules for the game into `~/.eu4indexer/config/<game>`.
-With no `--game`, downloads config for all known games.
-
-| Flag | Description |
-|---|---|
-| `--game` | only download config for this game (default: all known games) |
-| `--ref` | override the pinned cwtools config commit/branch to download |
-
-```bash
-eu4indexer setup                 # all games
-eu4indexer setup --game hoi4     # one game
-```
-
----
-
 ## `serve`
 
 Run the read-only MCP server over stdio.
@@ -324,9 +309,9 @@ Print the `eu4indexer` version and exit.
 
 ## `update`
 
-Self-update the installed binary to the latest GitHub release, then refresh any
-CWTools config rules whose pinned ref has moved on in the new build. Brings both
-the binary and the config rules current in one step.
+Self-update the installed engine and its bundled CWTools rules to the latest
+GitHub release. External rule directories remain under your control. Refresh
+existing indexes afterward to apply the new rules.
 
 | Flag | Description |
 |---|---|
@@ -334,7 +319,7 @@ the binary and the config rules current in one step.
 | `--force` | reinstall the latest release even if already up to date |
 
 ```bash
-eu4indexer update            # update if a newer release exists, then refresh config
+eu4indexer update            # update engine and bundled rules if a newer release exists
 eu4indexer update --check    # just compare current vs latest
 eu4indexer update --force    # reinstall the latest binary
 ```
@@ -348,9 +333,8 @@ How it works:
   swapped in place; on **Windows** a detached helper waits for the process to
   exit, swaps the directories, and relaunches the config refresh (a running
   `.exe` and its loaded DLLs can't be overwritten in place).
-- After the swap, the **new** binary refreshes config for any game whose
-  installed ref differs from the one it pins (recorded in a `.eu4indexer-ref`
-  marker; pre-marker installs are refreshed once).
+- Rules are part of the replaced engine directory, including on Windows. There
+  is no follow-up rule download or hidden config-update command.
 
 `update` only works for script installs (`install.sh` / `install.ps1`). Run from
 a source checkout (`dotnet run`, `bin/Debug/...`) it refuses the swap — update via
