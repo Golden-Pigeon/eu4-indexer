@@ -9,7 +9,6 @@
     <Compile Include="AppInfo.fs" />
     <Compile Include="AppPaths.fs" />
     <Compile Include="Registry.fs" />
-    <Compile Include="Setup.fs" />
     <Compile Include="Updater.fs" />
     <Compile Include="AgentInstall.fs" />
     <Compile Include="Domain.fs" />
@@ -52,5 +51,22 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Eu4Indexer.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="../external/cwtools-eu4-config/**/*" Exclude="../external/cwtools-eu4-config/.git;../external/cwtools-eu4-config/.github/**/*;../external/cwtools-eu4-config/.gitignore;../external/cwtools-eu4-config/.gitattributes">
+      <Link>rules/eu4/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="../external/cwtools-hoi4-config/**/*" Exclude="../external/cwtools-hoi4-config/.git;../external/cwtools-hoi4-config/.github/**/*;../external/cwtools-hoi4-config/.gitignore;../external/cwtools-hoi4-config/.gitattributes">
+      <Link>rules/hoi4/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="VerifyBundledRules" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('../external/cwtools-eu4-config/scopes.cwt') Or !Exists('../external/cwtools-hoi4-config/Config/scopes.cwt')" Text="Game rules are missing. Run git submodule update --init --recursive before building." />
+  </Target>
 
 </Project>

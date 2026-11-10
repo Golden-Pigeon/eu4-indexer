@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Check JSONL management and immutable fixture builds without any game install.
 
-Run after `setup`: python scripts/management-smoke.py <eu4indexer>.
-Uses a temporary home and the calling home's downloaded configuration rules.
+Run against an engine with bundled rules: python scripts/management-smoke.py <eu4indexer>.
+Uses a temporary home and the engine's bundled rules.
 """
 import json
 import os
 from pathlib import Path
 import subprocess
+import sqlite3
 import sys
 import tempfile
 
@@ -15,9 +16,10 @@ import tempfile
 def main():
     executable = str(Path(sys.argv[1]).resolve())
     root = Path(__file__).resolve().parent.parent
-    rules = Path(os.environ.get("EU4INDEXER_HOME", str(Path.home() / ".eu4indexer"))) / "config"
     with tempfile.TemporaryDirectory(prefix="management-smoke-") as home:
         env = {**os.environ, "EU4INDEXER_HOME": home}
+        env.pop("EU4_CONFIG_DIR", None)
+        env.pop("HOI4_CONFIG_DIR", None)
 
         def request(payload, success=True):
             process = subprocess.run([executable, "manage"], input=json.dumps(payload),
@@ -29,20 +31,28 @@ def main():
             assert (process.returncode == 0) == success
             return events[-1]["data"]
 
-        assert request({"operation": "capabilities"})["apiVersion"] == 1
+        capabilities = request({"operation": "capabilities"})
+        assert capabilities["apiVersion"] == 1
+        assert "setup" not in capabilities["operations"]
+        request({"operation": "setup"}, success=False)
+        assert all(game["configReady"] for game in request({"operation": "status"})["games"])
         built = {}
         for game in ("eu4", "hoi4"):
-            config = os.environ.get(game.upper() + "_CONFIG_DIR", str(rules / game))
             result = request({"operation": "index", "game": game, "name": game,
                               "gameDir": str(root / "Eu4Indexer.Tests" / "fixtures" / game / "example-game"),
-                              "configDir": config, "languages": ["english"]})
+                              "languages": ["english"]})
             built[game] = result["index"]["path"]
             assert result["report"]["entityCount"] > 0
             assert result["report"]["foreignKeyViolations"] == 0
         before = {db["name"]: db for db in request({"operation": "list"})["databases"]}
         for game, path in built.items():
             assert before[game]["path"] == path, (before[game]["path"], path)
+        for game, path in built.items():
+            assert request({"operation": "inspect", "name": game})["meta"]["config_source"] == "bundled"
+            with sqlite3.connect(path) as db:
+                db.execute("UPDATE meta SET value = ? WHERE key = 'config_repo_path'", (str(Path(home) / "obsolete-engine" / game),))
         refreshed = request({"operation": "refresh", "name": "eu4"})["index"]
+        request({"operation": "refresh", "name": "hoi4"})
         assert refreshed["path"] != before["eu4"]["path"]
         assert Path(before["eu4"]["path"]).is_file()
         request({"operation": "index", "name": "eu4", "gameDir": str(Path(home) / "missing")}, success=False)

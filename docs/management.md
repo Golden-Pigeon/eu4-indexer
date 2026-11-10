@@ -3,9 +3,8 @@
 `eu4indexer manage` accepts one JSON object from stdin (or `--request <json>`).
 It writes newline-delimited JSON to stdout. Every event has `apiVersion: 1`,
 `type`, and `data`. Types are `log`, `progress`, and exactly one terminal
-`result` or `error`. Success exits 0; failure exits 1. Human CLI commands retain
-their existing flags and output. Set `EU4INDEXER_HOME` to isolate the registry,
-rules and managed databases from another application.
+`result` or `error`. Success exits 0; failure exits 1. The separate `setup` operation and CLI command have been removed. Set `EU4INDEXER_HOME` to isolate the registry
+and managed databases from another application.
 
 ```sh
 printf '%s' '{"operation":"capabilities"}' | eu4indexer manage
@@ -15,13 +14,12 @@ printf '%s' '{"operation":"index","game":"eu4","name":"vanilla","gameDir":"/game
 | Operation | Request fields and result |
 | --- | --- |
 | `capabilities` | API, engine/schema versions, games, operations, session metadata key |
-| `status` | Application home and each game's managed rules status |
+| `status` | Application home and each game's bundled or overridden rules path and readiness |
 | `detect` | `game`, optional `gameDir`, `mods`, `workshopIds`, `playset`, `autoMods`; resolved sources in load order |
 | `workshop` | `game`; installed Workshop items |
 | `playsets` | `game`; playsets with enabled flags and ordered mods |
 | `list` | Registry (`activeDb`, `databases`) |
 | `inspect` | `name` or `path`; schema/integrity check, metadata, parse errors with file path and nullable line/column. `errorOffset` (default 0), `errorLimit` (default 100, maximum 1000), `hasMoreErrors` allow complete traversal |
-| `setup` | `game`, optional `ref`; download CWTools rules |
 | `index` | `game`, `name`, discovery fields above, optional `configDir`, `languages`, `skipGeneric`, `noFts`, `setActive` |
 | `refresh` | `name`; rebuild using the persisted original discovery/options metadata |
 | `register` | `name`, absolute `path`, optional `setActive`; validate an existing database and register it |
@@ -68,6 +66,12 @@ Validation lives in `Eu4Indexer.Tests/DatabaseSelectionTests.cs`. The DSH adapte
 also exercises the JSONL protocol and real multiplexed MCP calls against both
 copyright-safe game fixtures.
 
-`scripts/management-smoke.py <executable>` runs the JSONL build/refresh/import lifecycle against both game fixtures after rules setup; the existing three-platform smoke workflow runs it alongside the original CLI/MCP smoke.
+`scripts/management-smoke.py <executable>` runs the JSONL build/refresh/import lifecycle against both game fixtures using bundled rules; the existing three-platform smoke workflow runs it alongside the original CLI/MCP smoke.
 
 Index entries returned by `index`, `refresh`, `register` and `list` use the same absolute path spelling, normalized to forward slashes on all platforms, including Windows.
+
+Rules ship under `rules/<game>/` beside the engine. `configDir` overrides the
+selected game's environment override and bundled rules. Index metadata records
+`config_source` (`bundled` or `external`): refresh follows the current engine for
+bundled rules and preserves an explicit external path. No network access is
+needed to acquire rules during indexing.

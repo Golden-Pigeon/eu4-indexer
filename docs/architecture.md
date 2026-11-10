@@ -26,7 +26,7 @@ eu4-indexer/
 | Project | Language | Purpose |
 |---|---|---|
 | `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, reference graph, SQLite/PostgreSQL writer |
-| `Eu4Indexer.Cli` | F# (Argu) | CLI: `index`, `detect`, `workshop`, `playset`, `serve`, `setup`, `install`, `use`, `list`, `version` |
+| `Eu4Indexer.Cli` | F# (Argu) | CLI: `index`, `detect`, `workshop`, `playset`, `serve`, `install`, `use`, `list`, `version` |
 | `Eu4Indexer.Mcp` | C# | Read-only MCP server exposing query tools to agents |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 
@@ -56,16 +56,15 @@ Key modules:
 - **Pipeline** (`Pipeline.fs`) — orchestrates a run end to end.
 - **Database** (`Database/Schema.fs`, `PostgresSchema.fs`, `Dialect.fs`,
   `Writer.fs`) — DDL and the bulk-load writer for both backends.
-- **App plumbing** (`AppPaths.fs`, `AppInfo.fs`, `Registry.fs`, `Setup.fs`,
-  `AgentInstall.fs`) — install dir layout, version, the index registry, config
-  download, and agent registration.
+- **App plumbing** (`AppPaths.fs`, `AppInfo.fs`, `Registry.fs`,
+  `AgentInstall.fs`) — install dir layout, version, the index registry, bundled rule paths, and agent registration.
 
 ### The `GameAdapter` abstraction
 
 The core is **game-agnostic**. `GameAdapter.fs` (`Domain.fs` for the shared
 types) defines a `GameAdapter` describing a game's id, directory layout,
 extractor set, and detail tables. `GameAdapter.byId` maps `"eu4"`/`"hoi4"` to an
-adapter; `allAdapters` drives multi-game `setup`. Adding a game means writing a
+adapter. Adding a game means writing a
 new adapter (and any game-specific extractors / detail tables) — the discovery,
 override, parsing, and writer machinery is reused unchanged.
 
@@ -112,4 +111,13 @@ doctrine vocabulary out of the shared graph algorithm.
 
 ## Application management and session selection
 
-`Eu4Indexer.Cli/Management.fs` adapts the existing Discovery, Setup, Pipeline and IndexInputs modules to a versioned one-request JSONL API. It publishes validated immutable files before updating the registry. `DatabaseSelection` stores connection defaults separately from logical session selections. The MCP call filter uses an async request scope so transient database injection resolves the correct immutable artifact for every tool. See [management.md](management.md).
+`Eu4Indexer.Cli/Management.fs` adapts the existing Discovery, Pipeline and IndexInputs modules to a versioned one-request JSONL API. It publishes validated immutable files before updating the registry. `DatabaseSelection` stores connection defaults separately from logical session selections. The MCP call filter uses an async request scope so transient database injection resolves the correct immutable artifact for every tool. See [management.md](management.md).
+
+## Bundled rules
+
+`external/cwtools-eu4-config` and `external/cwtools-hoi4-config` are pinned Git
+submodules. Core project content copies each complete repository (excluding Git
+metadata) into `rules/<game>/` in build and publish output, retaining its license
+and original directory layout. `AppPaths` resolves per-game environment overrides
+before these bundled paths. `Pipeline` records rule origin in metadata so a
+refresh can select the current bundle rather than an obsolete engine directory.

@@ -7,7 +7,8 @@ set up, the conventions the codebase follows, and how to land a change.
 
 1. **Clone with submodules.** CWTools is vendored as a git submodule at
    `external/cwtools` (a fork pinned to a build that compiles against the
-   current .NET SDK).
+   current .NET SDK). Both game-rule repositories are also pinned submodules
+   and copied into build/publish output automatically.
 
    ```bash
    git clone --recursive https://github.com/Golden-Pigeon/eu4-indexer.git
@@ -34,15 +35,14 @@ set up, the conventions the codebase follows, and how to land a change.
 
    - `EU4_GAME_DIR` — an EU4 install (must contain `common/`, `events/`,
      `localisation/`).
-   - `EU4_CONFIG_DIR` — a [`cwtools-eu4-config`](https://github.com/cwtools/cwtools-eu4-config) checkout.
+   - `EU4_CONFIG_DIR` — optional external rules checkout; unset uses bundled EU4 rules.
    - `EU4_EXAMPLE_MOD_DIR` — a mod directory (drives the override and
      special-escape localisation tests).
    - `EU4_PG_CONN` — (optional) a PostgreSQL connection string; enables the
      Postgres export test, which indexes into SQLite and Postgres and compares
      them. The role needs `CREATE EXTENSION pg_trgm`.
    - `HOI4_GAME_DIR` — (optional) a real Hearts of Iron IV install; enables the
-     HOI4 integration test. The config defaults to what `eu4indexer setup` fetched
-     (`~/.eu4indexer/config/hoi4`), or set `HOI4_CONFIG_DIR`; `HOI4_EXAMPLE_MOD_DIR`
+     HOI4 integration test. The config defaults to bundled rules, or set `HOI4_CONFIG_DIR`; `HOI4_EXAMPLE_MOD_DIR`
      additionally enables the HOI4 override test.
 
    `.env` is git-ignored; never commit game files, mods, or generated `*.db`
@@ -53,7 +53,7 @@ set up, the conventions the codebase follows, and how to land a change.
 | Project | Language | Purpose |
 |---|---|---|
 | `Eu4Indexer.Core` | F# | Parsing, extraction, override resolution, reference graph, SQLite/PostgreSQL writer |
-| `Eu4Indexer.Cli` | F# (Argu) | the `eu4indexer` CLI (`index`, `detect`, `serve`, `setup`, `install`, discovery/registry commands) |
+| `Eu4Indexer.Cli` | F# (Argu) | the `eu4indexer` CLI (`index`, `detect`, `serve`, `install`, discovery/registry commands) |
 | `Eu4Indexer.Mcp` | C# | Read-only MCP server exposing query tools to agents |
 | `Eu4Indexer.Tests` | C# (xunit) | Unit + integration tests |
 

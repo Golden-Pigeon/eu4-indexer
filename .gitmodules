@@ -2,3 +2,9 @@
 	path = external/cwtools
 	url = https://github.com/Golden-Pigeon/cwtools.git
 	branch = eu4-indexer-build
+[submodule "external/cwtools-eu4-config"]
+	path = external/cwtools-eu4-config
+	url = https://github.com/cwtools/cwtools-eu4-config.git
+[submodule "external/cwtools-hoi4-config"]
+	path = external/cwtools-hoi4-config
+	url = https://github.com/cwtools/cwtools-hoi4-config.git

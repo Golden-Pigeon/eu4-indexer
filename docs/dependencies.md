@@ -1,7 +1,7 @@
 # CWTools and game rules
 
 Checked against the canonical Git repositories on 2026-11-07. These are commit
-pins, not floating branch downloads.
+pins recorded as Git submodules, not floating branch downloads.
 
 | Dependency | Previous pin | Current canonical head / selected pin | Result |
 |---|---|---|---|
@@ -36,17 +36,16 @@ Primary sources: [CWTools](https://github.com/cwtools/cwtools/commit/b377453dee8
 relations are scoped to their entity type, so an unrelated `folder`/`track` key
 cannot create a doctrine relation.
 
-Run `setup --game hoi4` to install the new pin, then `refresh --name <index>`
-to populate existing indexes with the additional derived data. The DSH manager
-provides the equivalent rules-install and refresh operations. No table layout
-changes or forced database-version migration are needed. The engine does not
+Engine builds include both rule repositories at these pins under `rules/eu4`
+and `rules/hoi4`. Update the engine (or the DSH plugin), then refresh existing
+indexes to populate additional derived data. No separate setup command, table
+layout change or forced database-version migration is needed. The engine does not
 evaluate runtime/save-game math expressions, simulate doctrine choices, or add
 XOR branches together.
 
 The synthetic HOI4 fixture and `Hoi4RulesUpdateTests` cover these query paths
-without copyrighted game data. Run the complete test suite with both
-`EU4_CONFIG_DIR` and `HOI4_CONFIG_DIR` pointing at the pinned rules; the HOI4
-feature test requires the updated rules.
+without copyrighted game data. The complete fixture suite uses bundled rules automatically. `EU4_CONFIG_DIR`
+and `HOI4_CONFIG_DIR` optionally select external rules for development.
 
 ## Bundled SQLite security baseline
 

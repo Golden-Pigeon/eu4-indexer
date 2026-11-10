@@ -11,7 +11,8 @@ public static class TestPaths
 {
     private static readonly Lazy<IReadOnlyDictionary<string, string>> DotEnv = new(LoadDotEnv);
 
-    public static string? ConfigDir => Resolve("EU4_CONFIG_DIR");
+    public static string? ConfigDir => Resolve("EU4_CONFIG_DIR")
+        ?? ResolveDir(Eu4Indexer.Core.AppPaths.configDir("eu4"));
 
     public static string? GameDir => Resolve("EU4_GAME_DIR");
 
@@ -30,12 +31,10 @@ public static class TestPaths
     /// Optional HOI4 mod for the override integration test.
     public static string? Hoi4ExampleModDir => Resolve("HOI4_EXAMPLE_MOD_DIR");
 
-    /// HOI4 config dir: an explicit HOI4_CONFIG_DIR, else the one downloaded by
-    /// `eu4indexer setup` at ~/.eu4indexer/config/hoi4.
+    /// HOI4 config override, falling back to rules bundled with the build.
     public static string? Hoi4ConfigDir =>
         Resolve("HOI4_CONFIG_DIR")
-        ?? ResolveDir(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".eu4indexer", "config", "hoi4"));
+        ?? ResolveDir(Eu4Indexer.Core.AppPaths.configDir("hoi4"));
 
     private static string? ResolveDir(string path) =>
         Directory.Exists(path) ? path : null;

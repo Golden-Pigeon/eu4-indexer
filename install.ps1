@@ -4,7 +4,7 @@
 #
 # Downloads the self-contained eu4indexer binary (no .NET install needed) plus
 # the bundled skill into %USERPROFILE%\.eu4indexer and adds it to the user PATH.
-# Then: eu4indexer setup; eu4indexer index; eu4indexer install.
+# Then: eu4indexer index; eu4indexer install. Game rules are bundled.
 #
 # Options (env or params):
 #   $env:EU4INDEXER_HOME / -Location DIR    install dir (default: ~\.eu4indexer)
@@ -94,7 +94,6 @@ try {
     Write-Host "Installed eu4indexer to $binPath\eu4indexer.exe"
     Write-Host ""
     Write-Host "Next:"
-    Write-Host "  eu4indexer setup      # download cwtools config rules"
     Write-Host "  eu4indexer index      # build an index from your local game install (EU4 / HOI4)"
     Write-Host "  eu4indexer install    # register MCP + skill with Claude Code / Codex"
 }

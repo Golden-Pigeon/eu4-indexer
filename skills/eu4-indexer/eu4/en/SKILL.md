@@ -374,7 +374,7 @@ Build an index, then register the server:
 ```bash
 dotnet run -c Release --project Eu4Indexer.Cli -- index \
   --game-dir /path/to/eu4 --mod /path/to/mod \
-  --config-dir /path/to/cwtools-eu4-config --db eu4.db
+  --db eu4.db
 ```
 
 ```json

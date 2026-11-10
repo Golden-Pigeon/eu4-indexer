@@ -341,7 +341,7 @@ agent 在回答中应使用标准中译，可在括号中附带社区俗称。�
 ```bash
 eu4indexer index \
   --game-dir /path/to/eu4 --mod /path/to/mod \
-  --config-dir /path/to/cwtools-eu4-config --db eu4.db
+  --db eu4.db
 
 eu4indexer serve --db /path/to/eu4.db
 ```

@@ -226,14 +226,13 @@ module Updater =
 
     /// Windows can't overwrite a running .exe or its loaded DLLs, so write a
     /// detached helper that waits for this process to exit, swaps the dirs, and
-    /// relaunches the new binary to finish the config refresh.
+    /// copies the complete publish directory, including bundled game rules.
     let private applyWindows (stagedRoot: string) (log: string -> unit) =
         let home = AppPaths.home ()
         let binTarget = AppPaths.binDir ()
         let pid = Process.GetCurrentProcess().Id
         let stagedBin = Path.Combine(stagedRoot, "bin")
         let stagedSkills = Path.Combine(stagedRoot, "skills")
-        let exe = Path.Combine(binTarget, "eu4indexer.exe")
 
         let skillsBlock =
             if Directory.Exists stagedSkills then
@@ -252,15 +251,13 @@ module Updater =
                  Remove-Item -Recurse -Force '%s'\n\
                  Copy-Item -Recurse -Force '%s' '%s'\n\
                  %s\
-                 Remove-Item -Recurse -Force '%s'\n\
-                 Start-Process -FilePath '%s' -ArgumentList 'update','--finish-config'\n"
+                 Remove-Item -Recurse -Force '%s'\n"
                 pid
                 binTarget
                 stagedBin
                 binTarget
                 skillsBlock
                 stagedRoot
-                exe
 
         let scriptPath = Path.Combine(Path.GetTempPath(), sprintf "eu4indexer-update-%d.ps1" pid)
         File.WriteAllText(scriptPath, script)

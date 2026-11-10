@@ -30,6 +30,7 @@ Eu4Indexer.Tests/     # C# (xunit) — unit + fixture + integration tests
 skills/eu4-indexer/   #     per-game, per-language agent skills (<game>/<lang>/SKILL.md)
 scripts/              #     build-binaries.{sh,ps1}, mcp-smoke.py
 external/cwtools/     #     vendored CWTools fork (git submodule)
+external/cwtools-*-config/ # pinned game-rule submodules, bundled in every build
 install.sh / .ps1     #     end-user installers
 AGENTS.md / CLAUDE.md #     mirrored agent guidance; always update together
 docs/                 #     architecture / database / commands references
@@ -50,7 +51,7 @@ recorded in `parse_errors`; a single bad file never aborts the run.
 
 ## Build & run
 
-Requires the **.NET 9 SDK**, and a `--recursive` clone (CWTools submodule).
+Requires the **.NET 9 SDK**, and a `--recursive` clone (CWTools and both game-rule submodules).
 
 ```bash
 git submodule update --init --recursive      # if not cloned with --recursive
@@ -74,8 +75,7 @@ stays green without external data.
   adapter/extractor tests, `McpToolsTests`).
 - **Fixture index tests** (`FixtureIndexTests`, `Hoi4FixtureIndexTests`) — index
   the synthetic fixtures under `Eu4Indexer.Tests/fixtures/<game>/` (no real game
-  files), but need the CWTools config rules. They **no-op without a config dir**;
-  to enable, run `eu4indexer setup` or set `EU4_CONFIG_DIR`. Run just these with:
+  files), using the bundled CWTools rules. Run just these with:
   `dotnet test --filter "FullyQualifiedName~FixtureIndexTests"`.
 - **Integration tests** (`IntegrationTests`, `Hoi4IntegrationTests`,
   `PostgresExportTests`) — need real game data and/or a Postgres connection. Gated
@@ -91,7 +91,7 @@ Adding integration assertions that need game data: gate on `TestPaths` and
 `return` early when the resource is missing — follow the existing pattern.
 `scripts/mcp-smoke.py <exe> <db-name>` drives the MCP server end to end (used by
 CI). CI is `.github/workflows/smoke.yml` (build → install via the script in
-offline mode → setup → index → serve), on all three platforms.
+offline mode → index → serve), on all three platforms.
 
 ## Push, PR & release
 
@@ -161,7 +161,7 @@ These are the non-obvious "change X → also change Y" couplings CI or users bre
   any of these, update the workflow (and `scripts/mcp-smoke.py`) to match:
   - **Fixture layout** under `Eu4Indexer.Tests/fixtures/<game>/` (`example-game`,
     `example-mod`) — the smoke job indexes these by path.
-  - **CLI command/flag surface** — the job exercises `version`/`setup`/`index`/
+  - **CLI command/flag surface** — the job exercises `version`/`index`/
     `list`/`serve`; renaming or changing required flags breaks it.
   - **Release archive names** from `scripts/build-binaries.*`
     (`eu4indexer-<rid>.{tar.gz,zip}`, version-less) — the job and the installers
@@ -181,10 +181,10 @@ These are the non-obvious "change X → also change Y" couplings CI or users bre
   `Schema.UserVersion`; the MCP server rejects indexes whose `PRAGMA user_version`
   differs, and the Postgres `DROP TABLE` list must include any new table.
 
-- **Game-rule upgrades**: update `Setup.configForGame` deliberately; review new
+- **Game-rule upgrades**: update the `external/cwtools-*-config` gitlinks deliberately; review new
   gameplay features as well as parser compatibility. Keep `docs/dependencies.md`,
   both HOI4 skill translations and fixture tests current. CI runs the complete
-  suite with both pinned config directories. Doctrine grand/sub types share the
+  fixture suite with both bundled config directories. Doctrine grand/sub types share the
   `doctrine` reference namespace because `has_doctrine` accepts either.
 
 - **`refs` identity edges are a 3-file contract**: a `ref_kind` whose
@@ -214,3 +214,9 @@ These are the non-obvious "change X → also change Y" couplings CI or users bre
 - **Conventional Commits** (`feat:`, `fix:`, `docs:`, `chore:`, `ci:`, …),
   imperative and lowercase. Changes to CWTools itself go in the fork; bump the
   submodule pointer in a separate commit.
+
+- **Game rules ship with the engine**: Core content items copy both pinned rule
+  submodules to `rules/<game>/` in build and publish output. Preserve licenses,
+  game-specific environment overrides and explicit `--config-dir`. Default-rule
+  refreshes must resolve the current bundle; explicit external rules stay selected.
+  There is no `setup` command or separate rule-download lifecycle.

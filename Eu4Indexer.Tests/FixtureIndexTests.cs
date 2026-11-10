@@ -10,7 +10,7 @@ namespace Eu4Indexer.Tests;
 /// End-to-end indexing against the repo's synthetic, copyright-safe example
 /// game (and example mod). Unlike <see cref="IntegrationTests"/>, this needs no
 /// real game files — only a cwtools config dir (CI provides one via
-/// <c>eu4indexer setup</c> + EU4_CONFIG_DIR). No-ops when no config is present.
+/// bundled rules or EU4_CONFIG_DIR). No-ops when no config is present.
 /// </summary>
 public class FixtureIndexTests
 {

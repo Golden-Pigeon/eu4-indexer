@@ -140,7 +140,7 @@ public class RefreshInputsTests
 
             var inputs = IndexInputs.read(dbPath);
             Assert.Equal("eu4", inputs.GameId);
-            Assert.Equal(configDir, inputs.ConfigDir);
+            Assert.Equal(AppPaths.isBundledConfig("eu4", configDir) ? "" : configDir, inputs.ConfigDir);
             Assert.Equal(new[] { "english" }, inputs.Languages);
             Assert.True(inputs.SkipGeneric);
             Assert.False(inputs.WithFts);

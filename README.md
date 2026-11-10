@@ -110,7 +110,6 @@ SUBCOMMANDS:
     workshop    list installed Steam Workshop items (id and mod name)
     playset     list launcher playsets, or the mods of one playset
     serve       run the read-only MCP server over stdio
-    setup       download the cwtools config rules for the game
     install     register the MCP server + skill with local agents
     use         set the active index the MCP server serves by default
     list        list registered indexes (* marks the active one)
@@ -125,11 +124,13 @@ the Workshop/playset walkthroughs — is in
 ### A typical run
 
 ```bash
-eu4indexer setup       # download the cwtools config rules (per game)
 eu4indexer index       # build an index from your local install (auto-detects
                        # the game; add --mod / --playset / etc.)
 eu4indexer install     # register the MCP server + skill with Claude Code / Codex
 ```
+
+Both games' CWTools rules are bundled with the engine; no rule download command
+is needed. Use `--config-dir` for an external rules checkout.
 
 CWTools / rule pins and HOI4 doctrine, modifier and expression query support are
 documented in [dependency coverage](docs/dependencies.md). After updating HOI4
@@ -140,7 +141,7 @@ registry: `eu4indexer list` shows them and `eu4indexer use <name>` sets the
 active one.
 
 Keep a script install current with `eu4indexer update` — it self-updates the
-binary to the latest release and updates any stale config rules
+binary and bundled rules to the latest release
 (`eu4indexer update --check` just compares versions).
 
 After a game or mod patch, re-index in place with `eu4indexer refresh` (all
@@ -210,4 +211,4 @@ Contributions are welcome — bug fixes, new extractors, and new game adapters. 
 
 ### Application management and isolated query sessions
 
-Applications can use `eu4indexer manage` with one JSON request on stdin for game/mod discovery, rules setup, index builds, refresh, import and inspection. Immutable versioned builds preserve the previous index on failure. MCP clients can isolate selection with `_meta["eu4indexer/sessionId"]` on each `tools/call`, or `serve --query-session <id>` for a dedicated connection. Existing clients retain connection-local selection. See the [management and session reference](docs/management.md).
+Applications can use `eu4indexer manage` with one JSON request on stdin for game/mod discovery, bundled rules, index builds, refresh, import and inspection. Immutable versioned builds preserve the previous index on failure. MCP clients can isolate selection with `_meta["eu4indexer/sessionId"]` on each `tools/call`, or `serve --query-session <id>` for a dedicated connection. Existing clients retain connection-local selection. See the [management and session reference](docs/management.md).
