@@ -9,11 +9,15 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-25
+
+### Fixed
+
 - Read Windows management requests as UTF-8. Handle repeated inline modifier
   keys across blocks in generic entities and HOI4 ideas. Both MCP search tools
-  support short, case-insensitive localisation substrings. [Initial fix](https://github.com/Golden-Pigeon/eu4-indexer/commit/7162b2da879ffeaf9bf650ae7dccaf3f4f016879)
+  support short, case-insensitive localisation substrings. ([#13](https://github.com/Golden-Pigeon/eu4-indexer/pull/13))
 - Decode quoted and unquoted names in BOM-less UTF-8 game scripts while
-  retaining Windows-1252 support. [Initial fix](https://github.com/Golden-Pigeon/eu4-indexer/commit/038d53f169c693dba557378e52cfdb0d2d1f709f)
+  retaining Windows-1252 support. ([#13](https://github.com/Golden-Pigeon/eu4-indexer/pull/13))
 
 ## [0.4.0] - 2026-11-10
 
@@ -241,7 +245,8 @@ Initial release — an EU4 script indexer with a query layer for agents.
   [c23cdfd](https://github.com/Golden-Pigeon/eu4-indexer/commit/c23cdfd),
   [6f69b1d](https://github.com/Golden-Pigeon/eu4-indexer/commit/6f69b1d)).
 
-[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Golden-Pigeon/eu4-indexer/compare/v0.3.0...v0.3.1
