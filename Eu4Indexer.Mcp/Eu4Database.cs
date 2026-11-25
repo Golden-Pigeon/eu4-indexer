@@ -60,6 +60,10 @@ public sealed class Eu4Database
     {
         var conn = new SqliteConnection(_connectionString);
         conn.Open();
+        // SQLite's built-in lower() folds ASCII only. Short localisation terms bypass FTS5.
+        conn.CreateFunction("contains_ignore_case", (string? value, string? term) =>
+            value is not null && term is not null && value.Contains(term, StringComparison.OrdinalIgnoreCase),
+            isDeterministic: true);
         return conn;
     }
 

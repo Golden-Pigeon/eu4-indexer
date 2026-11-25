@@ -44,21 +44,9 @@ module Ideas =
             let nodes =
                 ScriptTree.flatten lookups idGen.NextNodeId entity.EntityId ideaNode
 
-            let modifierValues =
-                match ideaNode.Child "modifier" with
-                | Some modNode ->
-                    modNode.Leaves
-                    |> Seq.map (fun l ->
-                        { EntityId = entity.EntityId
-                          ModifierKey = l.Key
-                          Value = l.ValueText
-                          SymbolId = Map.tryFind (l.Key.ToLowerInvariant()) lookups.Modifier })
-                    |> lastModifierValues
-                | None -> []
-
             let locs =
                 [ { EntityId = entity.EntityId; Role = "name"; LocKey = key } ]
 
             { EntityPayload.generic entity nodes with
-                ModifierValues = modifierValues
+                ModifierValues = inlineModifierValues lookups entity.EntityId ideaNode
                 EntityLocs = locs })

@@ -14,6 +14,17 @@ module Support =
         |> Map.toList
         |> List.map snd
 
+    let inlineModifierValues (lookups: ScriptTree.TagLookups) entityId (node: Node) =
+        node.Children
+        |> Seq.filter (fun block -> block.Key.Equals("modifier", System.StringComparison.OrdinalIgnoreCase))
+        |> Seq.collect (fun block -> block.Leaves)
+        |> Seq.map (fun leaf ->
+            { EntityId = entityId
+              ModifierKey = leaf.Key
+              Value = leaf.ValueText
+              SymbolId = ScriptTree.resolveModifierSymbol lookups.Modifier leaf.Key })
+        |> lastModifierValues
+
     /// Globally-unique id allocators, shared by all extractors in one run.
     type IdGen =
         { NextEntityId: unit -> int64

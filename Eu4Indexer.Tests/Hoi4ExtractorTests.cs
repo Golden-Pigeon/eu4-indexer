@@ -148,6 +148,10 @@ public class Hoi4ExtractorTests
                             political_power_factor = 0.15
                             stability_factor = 0.10
                         }
+                        modifier = {
+                            political_power_factor = 0.25
+                            war_support_factor = 0.20
+                        }
                     }
                 }
             }
@@ -163,8 +167,9 @@ public class Hoi4ExtractorTests
         var idea = payloads[0];
         Assert.Equal("idea", idea.Entity.EntityType);
         Assert.Equal("test_advisor", idea.Entity.EntityKey);
-        Assert.Equal(2, idea.ModifierValues.Length);
-        Assert.Contains(idea.ModifierValues, mv => mv.ModifierKey == "political_power_factor");
+        Assert.Equal(3, idea.ModifierValues.Length);
+        Assert.Contains(idea.ModifierValues, mv => mv.ModifierKey == "political_power_factor" && mv.Value == "0.25");
+        Assert.Contains(idea.ModifierValues, mv => mv.ModifierKey == "war_support_factor");
         Assert.Contains(idea.ModifierValues, mv => mv.ModifierKey == "stability_factor");
     }
 
