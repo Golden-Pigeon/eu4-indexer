@@ -45,7 +45,9 @@ Key modules:
   compute the effective file set across the load order and record file/entity/loc
   overrides as pure, unit-testable functions.
 - **Parsing & config** (`Parsing.fs`, `ConfigCatalog.fs`, `Localisation.fs`) — the
-  only modules that call CWTools. Keep all CWTools usage isolated here.
+  only modules that call CWTools. Game scripts honor a Unicode BOM and otherwise
+  use Windows-1252. If the latter parse fails, the parser retries valid UTF-8
+  and adopts that result only when parsing succeeds.
 - **Extraction** (`Extractors/`) — one module per content type: `Events.fs`,
   `Missions.fs`, `Decisions.fs`, `Modifiers.fs`, `FocusTrees.fs` (HOI4),
   `Ideas.fs`, `Defines.fs`, plus `Generic.fs` (config-`type`-driven) and
