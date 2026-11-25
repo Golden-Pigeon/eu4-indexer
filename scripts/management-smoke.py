@@ -17,14 +17,14 @@ import tempfile
 def main():
     executable = str(Path(sys.argv[1]).resolve())
     root = Path(__file__).resolve().parent.parent
-    with tempfile.TemporaryDirectory(prefix="management-smoke-") as home:
+    with tempfile.TemporaryDirectory(prefix="management-smoke-归墟之门-") as home:
         env = {**os.environ, "EU4INDEXER_HOME": home}
         env.pop("EU4_CONFIG_DIR", None)
         env.pop("HOI4_CONFIG_DIR", None)
 
         def request(payload, success=True):
-            process = subprocess.run([executable, "manage"], input=json.dumps(payload),
-                                     capture_output=True, text=True, env=env, timeout=120)
+            process = subprocess.run([executable, "manage"], input=json.dumps(payload, ensure_ascii=False),
+                                     capture_output=True, encoding="utf-8", env=env, timeout=120)
             events = [json.loads(line) for line in process.stdout.splitlines() if line.strip()]
             assert events and all(event["apiVersion"] == 1 for event in events), process.stderr
             assert sum(event["type"] in ("result", "error") for event in events) == 1

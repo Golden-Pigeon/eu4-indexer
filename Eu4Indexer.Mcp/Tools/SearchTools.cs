@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -18,6 +19,18 @@ public static class SearchTools
                 "unavailable. Re-index without --no-fts, or use the entity/graph tools instead.");
     }
 
+    private static (string FromWhere, string Parameter) LocalisationMatch(string text)
+    {
+        // Trigram MATCH cannot produce a token from one or two Unicode scalars.
+        if (text.Length > 0 && text.EnumerateRunes().Take(3).Count() < 3)
+            return ("FROM localisation l WHERE l.is_effective = 1 AND instr(lower(l.value_plain), lower($q)) > 0", text);
+
+        return ("""
+            FROM loc_fts f JOIN localisation l ON l.loc_id = f.rowid
+            WHERE loc_fts MATCH $q AND l.is_effective = 1
+            """, Eu4Database.FtsPhrase(text));
+    }
+
     [McpServerTool(Name = "search_localisation")]
     [Description(
         "Full-text search over localisation display text. Formatting markup (colour " +
@@ -32,19 +45,14 @@ public static class SearchTools
         RequireFts(db);
         limit = Math.Clamp(limit, 1, 200);
 
-        var sql =
-            """
-            SELECT l.loc_key, l.language, l.value
-            FROM loc_fts f
-            JOIN localisation l ON l.loc_id = f.rowid
-            WHERE loc_fts MATCH $q AND l.is_effective = 1
-            """
+        var match = LocalisationMatch(text);
+        var sql = "SELECT l.loc_key, l.language, l.value " + match.FromWhere
             + (language is null ? "" : " AND l.language = $lang")
             + " LIMIT $lim";
 
         var parameters = new Dictionary<string, object?>
         {
-            ["$q"] = Eu4Database.FtsPhrase(text),
+            ["$q"] = match.Parameter,
             ["$lim"] = limit,
         };
 
@@ -85,16 +93,11 @@ public static class SearchTools
             new Dictionary<string, object?> { ["$q"] = query, ["$lim"] = limit },
             limit));
 
+        var match = LocalisationMatch(text);
         hits.AddRange(db.Query(
-            """
-            SELECT l.language, l.loc_key, substr(l.value, 1, 200)
-            FROM loc_fts f
-            JOIN localisation l ON l.loc_id = f.rowid
-            WHERE loc_fts MATCH $q AND l.is_effective = 1
-            LIMIT $lim
-            """,
+            "SELECT l.language, l.loc_key, substr(l.value, 1, 200) " + match.FromWhere + " LIMIT $lim",
             r => new SearchHit("localisation", r.GetString(0), r.GetString(1), r.GetString(2)),
-            new Dictionary<string, object?> { ["$q"] = query, ["$lim"] = limit },
+            new Dictionary<string, object?> { ["$q"] = match.Parameter, ["$lim"] = limit },
             limit));
 
         return hits;

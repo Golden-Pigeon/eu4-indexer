@@ -1,5 +1,6 @@
 using Eu4Indexer.Core;
 using Eu4Indexer.Core.Database;
+using Eu4Indexer.Mcp;
 using Microsoft.Data.Sqlite;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
@@ -66,6 +67,16 @@ public class FixtureIndexTests
 
             // Localisation decoded for the fixture keys.
             Assert.True(Scalar(conn, "SELECT count(*) FROM localisation WHERE loc_key='fixture.1.t'") > 0);
+
+            const string reformValues = " FROM modifier_values JOIN entities USING (entity_id) WHERE entity_key='fixture_reform'";
+            Assert.Equal(2, Scalar(conn, "SELECT count(*)" + reformValues));
+            Assert.Equal(1, Scalar(conn, "SELECT count(*)" + reformValues + " AND modifier_key='discipline' AND value='0.03'"));
+            Assert.Equal(3, Scalar(conn, "SELECT count(*) FROM script_nodes JOIN entities USING (entity_id) WHERE entity_key='fixture_reform' AND key='discipline'"));
+
+            var db = new Eu4Database(dbPath);
+            Assert.Contains(SearchTools.SearchLocalisation(db, "归墟", "english"), hit => hit.LocKey == "fixture_reform");
+            Assert.Empty(SearchTools.SearchLocalisation(db, "归墟", "french"));
+            Assert.Contains(SearchTools.SearchEverything(db, "墟"), hit => hit.Kind == "localisation" && hit.Key == "fixture_reform");
 
             Assert.Equal(Schema.UserVersion, Scalar(conn, "PRAGMA user_version"));
         }

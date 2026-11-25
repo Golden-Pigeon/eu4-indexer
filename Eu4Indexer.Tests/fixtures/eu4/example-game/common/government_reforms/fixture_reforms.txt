@@ -1,0 +1,8 @@
+fixture_reform = {
+    modifier = {
+        discipline = 0.01
+        discipline = 0.02
+        prestige = 1
+    }
+    modifier = { discipline = 0.03 }
+}

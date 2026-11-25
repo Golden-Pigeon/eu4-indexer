@@ -724,7 +724,11 @@ let main argv =
         let results = parser.ParseCommandLine(inputs = argv, raiseOnUsage = true)
 
         match results.GetSubCommand() with
-        | Manage args -> Management.run (args.TryGetResult ManagementArgs.Request |> Option.defaultWith Console.In.ReadToEnd)
+        | Manage args ->
+            let readRequest () =
+                use reader = new StreamReader(Console.OpenStandardInput(), Text.Encoding.UTF8)
+                reader.ReadToEnd()
+            args.TryGetResult ManagementArgs.Request |> Option.defaultWith readRequest |> Management.run
         | Index indexArgs -> runIndex indexArgs
         | Refresh refreshArgs -> runRefresh refreshArgs
         | Detect detectArgs -> runDetect detectArgs

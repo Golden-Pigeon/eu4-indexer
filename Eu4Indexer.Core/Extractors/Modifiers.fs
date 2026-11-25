@@ -40,10 +40,7 @@ module Modifiers =
                       ModifierKey = l.Key
                       Value = l.ValueText
                       SymbolId = Map.tryFind (l.Key.ToLowerInvariant()) lookups.Modifier })
-                // repeated keys: last definition wins, like the game
-                |> Seq.fold (fun acc mv -> Map.add mv.ModifierKey mv acc) Map.empty
-                |> Map.toList
-                |> List.map snd
+                |> lastModifierValues
 
             let locs =
                 [ { EntityId = entity.EntityId

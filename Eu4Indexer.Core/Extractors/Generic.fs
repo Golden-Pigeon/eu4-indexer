@@ -96,15 +96,15 @@ module Generic =
                 leafText node field |> Option.map (fun key -> { EntityId = entity.EntityId; Role = role; LocKey = key }))
         let modifiers =
             node.Children
-            |> List.filter (fun child -> child.Key.Equals("modifier", System.StringComparison.OrdinalIgnoreCase))
-            |> List.collect (fun block ->
+            |> Seq.filter (fun child -> child.Key.Equals("modifier", System.StringComparison.OrdinalIgnoreCase))
+            |> Seq.collect (fun block ->
                 block.Leaves
                 |> Seq.map (fun leaf ->
                     { EntityId = entity.EntityId
                       ModifierKey = leaf.Key
                       Value = leaf.ValueText
-                      SymbolId = ScriptTree.resolveModifierSymbol lookups.Modifier leaf.Key })
-                |> Seq.toList)
+                      SymbolId = ScriptTree.resolveModifierSymbol lookups.Modifier leaf.Key }))
+            |> lastModifierValues
         { EntityPayload.generic entity nodes with
             ModifierValues = modifiers
             EntityLocs = (locsFor typeDef entity.EntityId entity.EntityKey @ explicitLocs) |> List.distinctBy (fun loc -> loc.Role) }

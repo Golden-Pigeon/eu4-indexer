@@ -1,6 +1,6 @@
 # Management API and query sessions
 
-`eu4indexer manage` accepts one JSON object from stdin (or `--request <json>`).
+`eu4indexer manage` accepts one UTF-8 JSON object from stdin (or `--request <json>`).
 It writes newline-delimited JSON to stdout. Every event has `apiVersion: 1`,
 `type`, and `data`. Types are `log`, `progress`, and exactly one terminal
 `result` or `error`. Success exits 0; failure exits 1. The separate `setup` operation and CLI command have been removed. Set `EU4INDEXER_HOME` to isolate the registry
