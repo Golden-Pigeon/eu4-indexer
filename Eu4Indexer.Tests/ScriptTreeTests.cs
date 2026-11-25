@@ -5,6 +5,27 @@ namespace Eu4Indexer.Tests;
 
 public class ScriptTreeTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ParseFile_PreservesUnquotedNamesInUtf8AndLegacyScripts(bool utf8)
+    {
+        const string source = "leader_names = { Andersson Anckarström }";
+        var path = Path.GetTempFileName();
+        try
+        {
+            var encoding = utf8 ? System.Text.Encoding.UTF8 : System.Text.Encoding.Latin1;
+            File.WriteAllBytes(path, encoding.GetBytes(source));
+            var parsed = Parsing.parseFile(path);
+            Assert.True(parsed.IsOk, parsed.IsError ? parsed.ErrorValue.Message : "");
+            Assert.Equal(source, Assert.Single(parsed.ResultValue.Lines));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private const string EventScript = """
         country_event = {
             id = test.1

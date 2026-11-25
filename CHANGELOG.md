@@ -12,6 +12,8 @@ Each entry links its source, preferring (high → low): **pull request**, then
 - Read management requests as UTF-8 on Windows, preserve the last inline value
   for repeated modifier keys in generic entities, and match one- and two-character
   localisation substrings in both MCP search tools.
+- Recover BOM-less UTF-8 mod scripts with accented identifiers when the legacy
+  Windows-1252 parse fails.
 
 ## [0.4.0] - 2026-11-10
 
