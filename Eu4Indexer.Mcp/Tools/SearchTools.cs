@@ -23,7 +23,7 @@ public static class SearchTools
     {
         // Trigram MATCH cannot produce a token from one or two Unicode scalars.
         if (text.Length > 0 && text.EnumerateRunes().Take(3).Count() < 3)
-            return ("FROM localisation l WHERE l.is_effective = 1 AND instr(lower(l.value_plain), lower($q)) > 0", text);
+            return ("FROM localisation l WHERE l.is_effective = 1 AND contains_ignore_case(l.value_plain, $q)", text);
 
         return ("""
             FROM loc_fts f JOIN localisation l ON l.loc_id = f.rowid

@@ -25,8 +25,7 @@ module Parsing =
     let private hasUtf8Bom (bytes: byte[]) =
         bytes.Length >= 3 && bytes[0] = 0xEFuy && bytes[1] = 0xBBuy && bytes[2] = 0xBFuy
 
-    /// Decode file bytes: honor a Unicode BOM if present, else Windows-1252
-    /// (the encoding EU4 script uses and CWTools assumes).
+    /// Honor a Unicode BOM, then prefer well-formed UTF-8 over legacy Windows-1252.
     let decodeBytes (bytes: byte[]) =
         if hasUtf8Bom bytes then
             Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3)
@@ -34,6 +33,8 @@ module Parsing =
             Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2)
         elif bytes.Length >= 2 && bytes[0] = 0xFEuy && bytes[1] = 0xFFuy then
             Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2)
+        elif Unicode.Utf8.IsValid(bytes) then
+            Encoding.UTF8.GetString bytes
         else
             Encoding.GetEncoding(1252).GetString bytes
 
@@ -58,15 +59,12 @@ module Parsing =
             let bytes = File.ReadAllBytes path
             let text = decodeBytes bytes
             match parseText path text with
-            | Result.Error _ as original when not (hasUtf8Bom bytes) && Unicode.Utf8.IsValid(bytes) ->
-                // Some mods use BOM-less UTF-8 for bare identifiers such as Anckarström.
-                // Keep the legacy parse and its diagnostics unless UTF-8 actually succeeds.
-                let utf8 = Encoding.UTF8.GetString bytes
-                if utf8 = text then original
-                else
-                    match parseText path utf8 with
-                    | Result.Ok _ as parsed -> parsed
-                    | Result.Error _ -> original
+            | Result.Error _ as original when
+                not (hasUtf8Bom bytes) && not (Ascii.IsValid(bytes)) && Unicode.Utf8.IsValid(bytes) ->
+                // A legacy file can coincidentally be valid UTF-8. Recover it if only the legacy parse works.
+                match parseText path (Encoding.GetEncoding(1252).GetString bytes) with
+                | Result.Ok _ as parsed -> parsed
+                | Result.Error _ -> original
             | parsed -> parsed
         with ex ->
             Result.Error

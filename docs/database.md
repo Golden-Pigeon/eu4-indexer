@@ -618,8 +618,9 @@ winner_source_id, loser_source_id, identical_content)`.
 
 Both are FTS5 external-content tables (`content='localisation'` / `content='entities'`,
 `content_rowid` = the primary key), populated after bulk load.
-Localisation searches for one or two Unicode characters scan the effective
-markup-stripped values because those terms are too short for the trigram index.
+Localisation searches for one or two Unicode characters use a case-insensitive
+substring scan of the effective markup-stripped values. Such terms are too
+short for the trigram index.
 
 ## PostgreSQL export
 

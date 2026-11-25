@@ -6,16 +6,22 @@ namespace Eu4Indexer.Tests;
 public class ScriptTreeTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ParseFile_PreservesUnquotedNamesInUtf8AndLegacyScripts(bool utf8)
+    [InlineData("utf-8", false)]
+    [InlineData("windows-1252", false)]
+    [InlineData("utf-8", true)]
+    [InlineData("windows-1252", true)]
+    [InlineData("utf-16", true)]
+    [InlineData("utf-16BE", true)]
+    public void ParseFile_PreservesNamesInUtf8AndLegacyScripts(string charset, bool quoted)
     {
-        const string source = "leader_names = { Andersson Anckarström }";
+        var source = quoted ? "name = \"Anckarström O’Neill\"" : "leader_names = { Andersson Anckarström }";
         var path = Path.GetTempFileName();
         try
         {
-            var encoding = utf8 ? System.Text.Encoding.UTF8 : System.Text.Encoding.Latin1;
-            File.WriteAllBytes(path, encoding.GetBytes(source));
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            var encoding = System.Text.Encoding.GetEncoding(charset);
+            byte[] bom = charset.StartsWith("utf-16", StringComparison.Ordinal) ? encoding.GetPreamble() : [];
+            File.WriteAllBytes(path, [.. bom, .. encoding.GetBytes(source)]);
             var parsed = Parsing.parseFile(path);
             Assert.True(parsed.IsOk, parsed.IsError ? parsed.ErrorValue.Message : "");
             Assert.Equal(source, Assert.Single(parsed.ResultValue.Lines));

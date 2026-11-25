@@ -77,6 +77,9 @@ public class FixtureIndexTests
             Assert.Contains(SearchTools.SearchLocalisation(db, "归墟", "english"), hit => hit.LocKey == "fixture_reform");
             Assert.Empty(SearchTools.SearchLocalisation(db, "归墟", "french"));
             Assert.Contains(SearchTools.SearchEverything(db, "墟"), hit => hit.Kind == "localisation" && hit.Key == "fixture_reform");
+            Assert.Contains(SearchTools.SearchLocalisation(db, "éla", "english"), hit => hit.LocKey == "fixture_accent");
+            Assert.Contains(SearchTools.SearchLocalisation(db, "él", "english"), hit => hit.LocKey == "fixture_accent");
+            Assert.Contains(SearchTools.SearchEverything(db, "é"), hit => hit.Kind == "localisation" && hit.Key == "fixture_accent");
 
             Assert.Equal(Schema.UserVersion, Scalar(conn, "PRAGMA user_version"));
         }

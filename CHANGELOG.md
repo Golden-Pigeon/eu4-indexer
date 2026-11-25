@@ -9,11 +9,11 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
-- Read management requests as UTF-8 on Windows, preserve the last inline value
-  for repeated modifier keys in generic entities, and match one- and two-character
-  localisation substrings in both MCP search tools.
-- Recover BOM-less UTF-8 mod scripts with accented identifiers when the legacy
-  Windows-1252 parse fails.
+- Read Windows management requests as UTF-8. Handle repeated inline modifier
+  keys across blocks in generic entities and HOI4 ideas. Both MCP search tools
+  support short, case-insensitive localisation substrings. [Initial fix](https://github.com/Golden-Pigeon/eu4-indexer/commit/7162b2da879ffeaf9bf650ae7dccaf3f4f016879)
+- Decode quoted and unquoted names in BOM-less UTF-8 game scripts while
+  retaining Windows-1252 support. [Initial fix](https://github.com/Golden-Pigeon/eu4-indexer/commit/038d53f169c693dba557378e52cfdb0d2d1f709f)
 
 ## [0.4.0] - 2026-11-10
 
