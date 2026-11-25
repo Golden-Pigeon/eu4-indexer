@@ -9,6 +9,10 @@ Each entry links its source, preferring (high → low): **pull request**, then
 
 ## [Unreleased]
 
+- Read management requests as UTF-8 on Windows, preserve the last inline value
+  for repeated modifier keys in generic entities, and match one- and two-character
+  localisation substrings in both MCP search tools.
+
 ## [0.4.0] - 2026-11-10
 
 ### Fixed

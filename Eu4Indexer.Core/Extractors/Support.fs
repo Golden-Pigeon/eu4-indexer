@@ -6,6 +6,14 @@ open CWTools.Process
 /// Shared plumbing for the entity extractors.
 module Support =
 
+    /// One projected value per literal key, with the last source occurrence winning.
+    /// The flattened script tree retains all occurrences in source order.
+    let lastModifierValues (values: seq<ModifierValue>) =
+        values
+        |> Seq.fold (fun acc mv -> Map.add mv.ModifierKey mv acc) Map.empty
+        |> Map.toList
+        |> List.map snd
+
     /// Globally-unique id allocators, shared by all extractors in one run.
     type IdGen =
         { NextEntityId: unit -> int64

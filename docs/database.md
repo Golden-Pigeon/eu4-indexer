@@ -420,6 +420,9 @@ means the column is nullable with no extra constraint.
 
 #### `modifier_values` — inline modifier `(key → value)` pairs (`WITHOUT ROWID`)
 
+When an entity repeats a modifier key, this table records its last value in
+source order. The script tree preserves every occurrence.
+
 | Column | Type | Meaning / constraint |
 |---|---|---|
 | `entity_id` | INTEGER | NOT NULL, FK → `entities`. Part of PK. |
@@ -615,6 +618,8 @@ winner_source_id, loser_source_id, identical_content)`.
 
 Both are FTS5 external-content tables (`content='localisation'` / `content='entities'`,
 `content_rowid` = the primary key), populated after bulk load.
+Localisation searches for one or two Unicode characters scan the effective
+markup-stripped values because those terms are too short for the trigram index.
 
 ## PostgreSQL export
 
