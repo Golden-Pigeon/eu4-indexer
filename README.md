@@ -121,6 +121,9 @@ manual — every flag, mod/game selection, the SQLite/PostgreSQL export target, 
 the Workshop/playset walkthroughs — is in
 [docs/commands.md](docs/commands.md).
 
+For EU4, `detect --playset "My Playset"` shows the resolved mod order used by
+`index` and `refresh`. The launcher list shows the positions set in the UI.
+
 ### A typical run
 
 ```bash

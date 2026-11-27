@@ -17,7 +17,7 @@ printf '%s' '{"operation":"index","game":"eu4","name":"vanilla","gameDir":"/game
 | `status` | Application home and each game's bundled or overridden rules path and readiness |
 | `detect` | `game`, optional `gameDir`, `mods`, `workshopIds`, `playset`, `autoMods`; resolved sources in load order |
 | `workshop` | `game`; installed Workshop items |
-| `playsets` | `game`; playsets with enabled flags and ordered mods |
+| `playsets` | `game`; playsets with enabled flags and launcher display positions |
 | `list` | Registry (`activeDb`, `databases`) |
 | `inspect` | `name` or `path`; schema/integrity check, metadata, parse errors with file path and nullable line/column. `errorOffset` (default 0), `errorLimit` (default 100, maximum 1000), `hasMoreErrors` allow complete traversal |
 | `index` | `game`, `name`, discovery fields above, optional `configDir`, `languages`, `skipGeneric`, `noFts`, `setActive` |

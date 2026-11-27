@@ -45,13 +45,26 @@ per-game detail tables are written.
   - `--workshop-id <id>` / `-w` — a subscribed Steam Workshop item, pulled
     straight from the workshop content dir; repeatable (see `workshop`).
   - `--playset <name-or-id>` / `-p` — a launcher playset's *enabled* mods, read
-    from `launcher-v2.sqlite` in the playset's load order (see `playset`).
+    from `launcher-v2.sqlite` (see `playset`). Use `detect` for the resolved load order.
   - `--auto-mods` — discover enabled mods from the launcher's `dlc_load.json` /
     `mod/*.mod` descriptors under the Paradox user-data directory.
-- **Load order** when several sources are combined: `--mod`, then `--workshop-id`,
-  then `--playset`, then `--auto-mods`. Later mods override earlier mods; any mod
-  overrides the base game. Override relationships are recorded explicitly (see
-  [database.md](database.md)).
+- **Load order** starts with explicit `--mod` paths and Workshop IDs in their
+  supplied order. The launcher-selected mods follow. In EU4, a playset and
+  `--auto-mods` form one selection. Each registered descriptor is used once.
+  `detect` shows the resolved order; a later mod wins same-path file conflicts.
+
+EU4 1.37.5 ranks each enabled mod by the longest chain of other enabled mods
+that depend on it. For example, if Patch depends on Overhaul and Overhaul on
+Translation, their ranks are 0, 1 and 2. Higher ranks load first. Within a rank,
+descriptor names are compared in descending byte order (case-sensitive UTF-8).
+Names refer to the `name` in the registered `.mod` file. Launcher display titles
+and positions are available through `playset`.
+
+For EU4, an absent or empty enabled list selects zero mods. An unreadable
+selection, distinct enabled descriptors with identical names, or cyclic
+dependencies produce a resolution error. A failed resolution leaves an existing
+index available for queries. Refresh an index with the updated engine to apply
+the corrected order.
 
 ### Config rules
 
@@ -237,7 +250,7 @@ Playset 'My Playset' (active) — 3 mods (2 enabled) [x = enabled]:
   [ ] 1000000003   Example Mod C
 ```
 
-Index a whole playset's *enabled* mods, in the playset's load order:
+Index a whole playset's *enabled* mods in resolved order:
 
 ```bash
 eu4indexer index --playset "My Playset" \
