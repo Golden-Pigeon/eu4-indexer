@@ -16,6 +16,7 @@ Each entry links its source, preferring (high → low): **pull request**, then
 - Match EU4 1.37.5 launcher mod precedence by dependency rank and descriptor
   name. This restores overhaul history when translation packs share its files.
   Invalid EU4 launcher selections are reported before an index is written.
+  ([#14](https://github.com/Golden-Pigeon/eu4-indexer/pull/14))
 
 ## [0.4.1] - 2026-11-25
 
