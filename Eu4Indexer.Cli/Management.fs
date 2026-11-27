@@ -47,16 +47,8 @@ module Management =
             invalidArg "name" "Use 1-80 ASCII letters, digits, dots, underscores or hyphens"
         name
     let private resolveMods a r =
-        let resolve resolver values = values |> List.map (resolver >> unwrap)
-        let explicit = resolve (Discovery.resolveExplicitMod Discovery.realProbe) (strings "mods" r)
-        let workshop = resolve (Discovery.resolveWorkshopMod a Discovery.realProbe) (strings "workshopIds" r)
-        let playset, pw = match opt "playset" r with
-                          | Some p -> Discovery.resolvePlayset a Discovery.realProbe p |> unwrap
-                          | None -> [], []
-        let auto, aw = if flag "autoMods" false r then Discovery.discoverMods a Discovery.realProbe else [], []
-        // Unresolved selected mods must never silently produce a different index.
-        if not pw.IsEmpty || not aw.IsEmpty then invalidOp (String.concat "; " (pw @ aw))
-        explicit @ workshop @ playset @ auto
+        Discovery.resolveMods a Discovery.realProbe (strings "mods" r) (strings "workshopIds" r)
+            (opt "playset" r) (flag "autoMods" false r) |> unwrap
     let private configDir game r =
         opt "configDir" r |> Option.defaultWith (fun () -> AppPaths.configDir game) |> Path.GetFullPath
     let private dbEntry name =

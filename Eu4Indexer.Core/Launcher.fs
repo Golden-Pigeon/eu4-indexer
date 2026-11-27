@@ -1,7 +1,7 @@
 namespace Eu4Indexer.Core
 
 /// Reads the Paradox launcher's playset database (launcher-v2.sqlite): the list
-/// of playsets and, per playset, its mods with enabled flag and load order.
+/// of playsets and, per playset, its mods with enabled flags and display positions.
 /// Opened read-only so the launcher's own copy is never disturbed.
 module Launcher =
 
@@ -58,7 +58,7 @@ module Launcher =
             String.Equals(p.Id, nameOrId, StringComparison.OrdinalIgnoreCase)
             || String.Equals(p.Name, nameOrId, StringComparison.OrdinalIgnoreCase))
 
-    /// Mods of a playset in load order (position ascending).
+    /// Mods in launcher display order. Discovery resolves enabled EU4 dependencies.
     let playsetMods (dbPath: string) (playsetId: string) : PlaysetMod list =
         use conn = connect dbPath
         use cmd = conn.CreateCommand()

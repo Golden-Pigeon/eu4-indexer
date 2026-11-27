@@ -119,38 +119,46 @@ module Discovery =
                         "game directory not found via Steam libraries (libraryfolders.vdf); pass it explicitly with --game-dir"
                     )
 
+    let private readDescriptor (probe: FsProbe) (userDataDir: string option) descriptorPath contentFallback =
+        let parsed =
+            try ModDescriptor.parseText (Path.GetFileName(descriptorPath: string)) (probe.ReadAllText descriptorPath)
+            with
+            | :? IOException as ex -> Result.Error ex.Message
+            | :? System.UnauthorizedAccessException as ex -> Result.Error ex.Message
+        match parsed with
+        | Result.Error e -> Result.Error(sprintf "failed to parse %s: %s" descriptorPath e)
+        | Result.Ok info ->
+            match info.Archive with
+            | Some a -> Result.Error(sprintf "mod '%s' is an archive (%s); unzip it first" info.Name a)
+            | None ->
+                let contentPath =
+                    match info.Path with
+                    | Some p when userDataDir.IsNone && probe.DirExists p -> Some p
+                    | Some p ->
+                        let descriptorDir = Path.GetDirectoryName(descriptorPath: string)
+                        [ yield! Option.toList userDataDir
+                          yield descriptorDir ]
+                        |> Seq.map (fun root -> Path.Combine(root, p))
+                        |> Seq.tryFind probe.DirExists
+                        |> Option.orElse contentFallback
+                    | None -> contentFallback
+
+                match contentPath with
+                | Some cp ->
+                    Result.Ok
+                        { DescriptorPath = Some descriptorPath
+                          ContentPath = cp
+                          Info = info }
+                | None -> Result.Error(sprintf "mod '%s': content directory not found" info.Name)
+
     /// Resolve one explicitly-given mod: either a content directory (containing
     /// descriptor.mod) or a path to a .mod descriptor file.
     let resolveExplicitMod (probe: FsProbe) (path: string) : Result<DiscoveredMod, string> =
-        let fromDescriptor descriptorPath (contentFallback: string option) =
-            match ModDescriptor.parseText (Path.GetFileName(descriptorPath: string)) (probe.ReadAllText descriptorPath) with
-            | Result.Error e -> Result.Error(sprintf "failed to parse %s: %s" descriptorPath e)
-            | Result.Ok info ->
-                match info.Archive with
-                | Some a -> Result.Error(sprintf "mod '%s' is an archive (%s); unzip it first" info.Name a)
-                | None ->
-                    let contentPath =
-                        match info.Path with
-                        | Some p when probe.DirExists p -> Some p
-                        | Some p ->
-                            // relative 'path=' entries are relative to the dir holding the descriptor
-                            let candidate = Path.Combine(Path.GetDirectoryName(descriptorPath: string), p)
-                            if probe.DirExists candidate then Some candidate else contentFallback
-                        | None -> contentFallback
-
-                    match contentPath with
-                    | Some cp ->
-                        Result.Ok
-                            { DescriptorPath = Some descriptorPath
-                              ContentPath = cp
-                              Info = info }
-                    | None -> Result.Error(sprintf "mod '%s': content directory not found" info.Name)
-
         if probe.DirExists path then
             let descriptor = Path.Combine(path, "descriptor.mod")
 
             if probe.FileExists descriptor then
-                fromDescriptor descriptor (Some path)
+                readDescriptor probe None descriptor (Some path)
             else
                 // bare content dir without descriptor: accept with minimal info
                 Result.Ok
@@ -168,59 +176,97 @@ module Discovery =
                           Dependencies = []
                           ReplacePaths = [] } }
         elif probe.FileExists path then
-            fromDescriptor path None
+            readDescriptor probe None path None
         else
             Result.Error(sprintf "mod path not found: %s" path)
 
-    /// Auto-discover mods from the user-data dir: prefers dlc_load.json
-    /// (the launcher's enabled-mods list, in load order); falls back to all
-    /// mod/*.mod descriptors in alphabetical order.
-    let discoverMods (adapter: GameAdapter) (probe: FsProbe) : DiscoveredMod list * string list =
+    let private collectResults results =
+        List.foldBack (fun result (mods, errors) ->
+            match result with
+            | Result.Ok m -> m :: mods, errors
+            | Result.Error e -> mods, e :: errors) results ([], [])
+
+    let private pathComparer =
+        if System.OperatingSystem.IsWindows() then System.StringComparer.OrdinalIgnoreCase
+        else System.StringComparer.Ordinal
+
+    // EU4 ranks a prerequisite above every mod that depends on it. Peeling off
+    // the mods nobody depends on gives successive ranks, starting at zero.
+    // The mount loop visits larger ranks first, then names in descending byte order.
+    let private orderLauncherMods (adapter: GameAdapter) (mods: DiscoveredMod list, warnings: string list) =
+        if adapter.GameId <> "eu4" then mods, warnings
+        else
+            let seen = System.Collections.Generic.HashSet<string>(pathComparer)
+            let mods = mods |> List.filter (fun m -> seen.Add(Path.GetFullPath(defaultArg m.DescriptorPath m.ContentPath)))
+            let duplicate = mods |> List.countBy (fun m -> m.Info.Name) |> List.tryFind (fun (_, count) -> count > 1)
+            let nameBytes (m: DiscoveredMod) = System.Text.Encoding.UTF8.GetBytes(m.Info.Name) |> Array.toList
+            let rec order sorted pending =
+                match pending with
+                | [] -> sorted, warnings
+                | _ ->
+                    let required = pending |> Seq.collect (fun m -> m.Info.Dependencies) |> Set.ofSeq
+                    let leaves, rest = pending |> List.partition (fun m -> not (required.Contains m.Info.Name))
+                    if leaves.IsEmpty then
+                        let names = pending |> List.map (fun m -> m.Info.Name) |> String.concat ", "
+                        [], warnings @ [ $"Cyclic EU4 mod dependencies prevent ordering: {names}" ]
+                    else
+                        let layer = leaves |> List.sortByDescending nameBytes
+                        order (layer @ sorted) rest
+            match duplicate with
+            | Some(name, _) -> [], warnings @ [ $"Multiple enabled EU4 descriptors have the same mod name: {name}" ]
+            | None -> order [] mods
+
+    let private readAutoMods (adapter: GameAdapter) (probe: FsProbe) : DiscoveredMod list * string list =
+        let isEu4 = adapter.GameId = "eu4"
+        let candidates = adapter.ModDirCandidates()
+        let hasManifest dir = probe.FileExists(Path.Combine(dir, "dlc_load.json"))
+        let hasModDir dir = probe.DirExists(Path.Combine(dir, "mod"))
         let userDataDir =
-            adapter.ModDirCandidates() |> List.tryFind (fun d -> probe.DirExists(Path.Combine(d, "mod")))
+            if isEu4 then candidates |> List.tryFind hasManifest |> Option.orElseWith (fun () -> List.tryFind hasModDir candidates)
+            else List.tryFind hasModDir candidates
 
         match userDataDir with
+        | None when isEu4 -> [], []
         | None -> [], [ "no Paradox user data dir with a mod/ folder found; pass mods explicitly with --mod" ]
         | Some dataDir ->
-            let descriptorPaths =
-                let fromDlcLoad =
-                    let dlcLoad = Path.Combine(dataDir, "dlc_load.json")
+            let manifest = Path.Combine(dataDir, "dlc_load.json")
+            let fallback () = if isEu4 then [] else probe.ListFiles (Path.Combine(dataDir, "mod")) "*.mod"
+            let paths, warnings =
+                if not (probe.FileExists manifest) then fallback (), []
+                else
+                    try
+                        use json = System.Text.Json.JsonDocument.Parse(probe.ReadAllText manifest)
+                        let enabledMods =
+                            if isEu4 then
+                                json.RootElement.EnumerateObject()
+                                |> Seq.tryFind (fun field -> System.String.Equals(field.Name, "enabled_mods", System.StringComparison.OrdinalIgnoreCase))
+                                |> Option.map (fun field -> field.Value)
+                            else
+                                match json.RootElement.TryGetProperty "enabled_mods" with
+                                | true, value -> Some value
+                                | _ -> None
+                        match enabledMods with
+                        | None -> fallback (), []
+                        | Some arr ->
+                            let enabled =
+                                [ for item in arr.EnumerateArray() do
+                                    let rel = item.GetString()
+                                    if isEu4 && System.String.IsNullOrWhiteSpace rel then
+                                        raise (System.FormatException("Expected a non-empty descriptor path in enabled_mods"))
+                                    if not (isNull rel) then yield Path.Combine(dataDir, rel) ]
+                            if not isEu4 && enabled.IsEmpty then fallback (), [] else enabled, []
+                    with ex ->
+                        if isEu4 then [], [ $"Cannot read enabled mods from {manifest}: {ex.Message}" ]
+                        else fallback (), []
+            let resolved =
+                paths |> List.map (fun path ->
+                    if not (probe.FileExists path) then Result.Error(sprintf "descriptor not found: %s" path)
+                    elif isEu4 then readDescriptor probe (Some dataDir) path None
+                    else resolveExplicitMod probe path)
+            let mods, errors = collectResults resolved
+            mods, warnings @ errors
 
-                    if probe.FileExists dlcLoad then
-                        try
-                            let json = System.Text.Json.JsonDocument.Parse(probe.ReadAllText dlcLoad)
-
-                            match json.RootElement.TryGetProperty "enabled_mods" with
-                            | true, arr ->
-                                arr.EnumerateArray()
-                                |> Seq.choose (fun e ->
-                                    let rel = e.GetString()
-                                    if isNull rel then None else Some(Path.Combine(dataDir, rel)))
-                                |> List.ofSeq
-                                |> Some
-                            | _ -> None
-                        with _ ->
-                            None
-                    else
-                        None
-
-                match fromDlcLoad with
-                | Some paths when not paths.IsEmpty -> paths
-                | _ -> probe.ListFiles (Path.Combine(dataDir, "mod")) "*.mod"
-
-            let results, warnings =
-                descriptorPaths
-                |> List.fold
-                    (fun (mods, warns) descriptorPath ->
-                        if not (probe.FileExists descriptorPath) then
-                            mods, sprintf "descriptor not found: %s" descriptorPath :: warns
-                        else
-                            match resolveExplicitMod probe descriptorPath with
-                            | Result.Ok m -> m :: mods, warns
-                            | Result.Error e -> mods, e :: warns)
-                    ([], [])
-
-            List.rev results, List.rev warnings
+    let discoverMods adapter probe = readAutoMods adapter probe |> orderLauncherMods adapter
 
     /// A Steam Workshop item for the game: numeric id, content directory, and
     /// mod name. The name is a cheap read of descriptor.mod only — mod contents
@@ -282,31 +328,37 @@ module Discovery =
         |> List.map (fun d -> Path.Combine(d, "launcher-v2.sqlite"))
         |> List.tryFind probe.FileExists
 
-    /// Resolve one launcher playset mod row to a DiscoveredMod. Prefers the
-    /// absolute dirPath, then the Workshop id, then the descriptor relative to
-    /// the user-data dir.
+    /// EU4 reads user-data .mod descriptors. A cached Workshop directory alone
+    /// cannot establish the name, dependencies or content path used by the game.
     let private resolvePlaysetMod
         (adapter: GameAdapter)
         (probe: FsProbe)
         (dataDir: string)
         (m: Launcher.PlaysetMod)
         : Result<DiscoveredMod, string> =
-        let viaDescriptor () =
-            match m.Descriptor with
-            | Some rel -> resolveExplicitMod probe (Path.Combine(dataDir, rel))
-            | None -> Result.Error(sprintf "mod '%s': no resolvable path (unsubscribed?)" m.Name)
-
-        match m.DirPath with
-        | Some d when probe.DirExists d -> resolveExplicitMod probe d
-        | _ ->
-            match m.SteamId |> Option.map (resolveWorkshopMod adapter probe) with
-            | Some(Result.Ok r) -> Result.Ok r
-            | _ -> viaDescriptor ()
+        if adapter.GameId = "eu4" then
+            let descriptor =
+                m.Descriptor
+                |> Option.orElseWith (fun () -> m.SteamId |> Option.map (fun id -> Path.Combine("mod", $"ugc_{id}.mod")))
+            match descriptor with
+            | None -> Result.Error(sprintf "mod '%s': no launcher descriptor" m.Name)
+            | Some rel ->
+                let path = Path.Combine(dataDir, rel)
+                if probe.FileExists path then readDescriptor probe (Some dataDir) path None
+                else Result.Error(sprintf "descriptor not found: %s" path)
+        else
+            match m.DirPath with
+            | Some d when probe.DirExists d -> resolveExplicitMod probe d
+            | _ ->
+                match m.SteamId |> Option.map (resolveWorkshopMod adapter probe), m.Descriptor with
+                | Some(Result.Ok r), _ -> Result.Ok r
+                | _, Some rel -> resolveExplicitMod probe (Path.Combine(dataDir, rel))
+                | _ -> Result.Error(sprintf "mod '%s': no resolvable path (unsubscribed?)" m.Name)
 
     /// Resolve the *enabled* mods of a playset (by name or id) to DiscoveredMods
-    /// in load order. Returns mods + per-mod warnings; Error if the launcher db
+    /// in launcher display order. Returns mods + per-mod warnings; Error if the launcher db
     /// or the named playset is missing.
-    let resolvePlayset
+    let private readPlayset
         (adapter: GameAdapter)
         (probe: FsProbe)
         (nameOrId: string)
@@ -322,11 +374,32 @@ module Discovery =
                 let mods, warnings =
                     Launcher.playsetMods dbPath ps.Id
                     |> List.filter (fun m -> m.Enabled)
-                    |> List.fold
-                        (fun (acc, warns) m ->
-                            match resolvePlaysetMod adapter probe dataDir m with
-                            | Result.Ok dm -> acc @ [ dm ], warns
-                            | Result.Error e -> acc, warns @ [ e ])
-                        ([], [])
+                    |> List.map (resolvePlaysetMod adapter probe dataDir)
+                    |> collectResults
 
                 Result.Ok(mods, warnings)
+
+    let resolvePlayset adapter probe selector =
+        readPlayset adapter probe selector |> Result.map (orderLauncherMods adapter)
+
+    /// Manual inputs keep their supplied order. Build a single dependency graph for
+    /// all launcher-selected EU4 mods, including selections combined on refresh.
+    let selectMods adapter probe explicitPaths workshopIds playset auto =
+        let manual =
+            List.map (resolveExplicitMod probe) explicitPaths @ List.map (resolveWorkshopMod adapter probe) workshopIds
+        let selected, pw =
+            match playset with
+            | None -> [], []
+            | Some selector ->
+                match readPlayset adapter probe selector with
+                | Result.Ok selection -> selection
+                | Result.Error e -> [], [ e ]
+        let automatic, aw = if auto then readAutoMods adapter probe else [], []
+        let ordered, warnings = orderLauncherMods adapter (selected @ automatic, pw @ aw)
+        let manualMods, manualErrors = collectResults manual
+        manualMods @ ordered, manualErrors @ warnings
+
+    let resolveMods adapter probe explicitPaths workshopIds playset auto =
+        match selectMods adapter probe explicitPaths workshopIds playset auto with
+        | mods, [] -> Result.Ok mods
+        | _, errors -> Result.Error(String.concat "\n" errors)

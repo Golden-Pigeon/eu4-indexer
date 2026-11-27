@@ -209,42 +209,15 @@ let private resolveAdapter (gameIdOpt: string option) =
         eprintfn "warning: unknown game '%s', falling back to eu4" id
         GameAdapter.eu4
 
-let private resolveMods
-    (probe: Discovery.FsProbe)
-    (explicit: string list)
-    (workshopIds: string list)
-    (playset: string option)
-    (auto: bool)
-    (adapter: GameAdapter)
-    =
-    // Resolve each item with the given resolver, accumulating mods (in order)
-    // and any warnings.
-    let resolveAll resolver items =
-        items
-        |> List.fold
-            (fun (mods, warns) item ->
-                match resolver item with
-                | Result.Ok m -> mods @ [ m ], warns
-                | Result.Error e -> mods, warns @ [ e ])
-            ([], [])
-
-    let explicitMods, explicitWarnings = resolveAll (Discovery.resolveExplicitMod probe) explicit
-    let workshopMods, workshopWarnings = resolveAll (Discovery.resolveWorkshopMod adapter probe) workshopIds
-
-    let playsetMods, playsetWarnings =
-        match playset with
-        | None -> [], []
-        | Some p ->
-            match Discovery.resolvePlayset adapter probe p with
-            | Result.Ok(mods, warns) -> mods, warns
-            | Result.Error e -> [], [ e ]
-
-    let autoMods, autoWarnings =
-        if auto then Discovery.discoverMods adapter probe else [], []
-
-    // Load order: explicit --mod paths, then --workshop-id, then --playset, then auto.
-    explicitMods @ workshopMods @ playsetMods @ autoMods,
-    explicitWarnings @ workshopWarnings @ playsetWarnings @ autoWarnings
+// Keep the CLI's existing best-effort mode for manual paths and HOI4. An EU4
+// launcher selection must be complete before calculating its dependency ranks.
+let private resolveCliMods (adapter: GameAdapter) probe explicitPaths workshopIds playset auto =
+    if adapter.GameId = "eu4" && (Option.isSome playset || auto) then
+        Discovery.resolveMods adapter probe explicitPaths workshopIds playset auto
+    else
+        let mods, warnings = Discovery.selectMods adapter probe explicitPaths workshopIds playset auto
+        warnings |> List.iter (eprintfn "warning: %s")
+        Result.Ok mods
 
 let private runDetect (args: ParseResults<DetectArgs>) =
     let adapter = resolveAdapter (args.TryGetResult DetectArgs.Game)
@@ -261,24 +234,25 @@ let private runDetect (args: ParseResults<DetectArgs>) =
         ExitGameNotFound
     | Result.Ok gameDir ->
         printfn "Game dir: %s" gameDir
-        let mods, warnings = resolveMods probe explicitMods workshopIds playset auto adapter
+        match resolveCliMods adapter probe explicitMods workshopIds playset auto with
+        | Result.Error e ->
+            eprintfn "%s" e
+            ExitConfigInvalid
+        | Result.Ok mods ->
+            printfn "Mods (%d), in load order:" mods.Length
 
-        warnings |> List.iter (eprintfn "warning: %s")
+            mods
+            |> List.iteri (fun i m ->
+                printfn "  [%d] %s" (i + 1) m.Info.Name
+                printfn "      path: %s" m.ContentPath
 
-        printfn "Mods (%d), in load order:" mods.Length
+                if not m.Info.ReplacePaths.IsEmpty then
+                    printfn "      replace_path: %s" (String.concat ", " m.Info.ReplacePaths)
 
-        mods
-        |> List.iteri (fun i m ->
-            printfn "  [%d] %s" (i + 1) m.Info.Name
-            printfn "      path: %s" m.ContentPath
+                if not m.Info.Dependencies.IsEmpty then
+                    printfn "      dependencies: %s" (String.concat ", " m.Info.Dependencies))
 
-            if not m.Info.ReplacePaths.IsEmpty then
-                printfn "      replace_path: %s" (String.concat ", " m.Info.ReplacePaths)
-
-            if not m.Info.Dependencies.IsEmpty then
-                printfn "      dependencies: %s" (String.concat ", " m.Info.Dependencies))
-
-        ExitOk
+            ExitOk
 
 // Shared indexing core: run the pipeline for an already-resolved set of inputs,
 // render progress, print the summary, and register the SQLite result. Used by
@@ -416,31 +390,33 @@ let private runIndex (args: ParseResults<IndexArgs>) =
     let playset = args.TryGetResult IndexArgs.Playset
     let auto = args.Contains IndexArgs.Auto_Mods
 
-    let mods, warnings = resolveMods probe explicitMods workshopIds playset auto adapter
-    warnings |> List.iter (eprintfn "warning: %s")
+    match resolveCliMods adapter probe explicitMods workshopIds playset auto with
+    | Result.Error e ->
+        eprintfn "%s" e
+        ExitConfigInvalid
+    | Result.Ok mods ->
+        let languages =
+            match args.TryGetResult Languages with
+            | Some s -> s.Split(',') |> Array.map (fun x -> x.Trim().ToLowerInvariant()) |> Array.filter ((<>) "") |> List.ofArray
+            | None -> []
 
-    let languages =
-        match args.TryGetResult Languages with
-        | Some s -> s.Split(',') |> Array.map (fun x -> x.Trim().ToLowerInvariant()) |> Array.filter ((<>) "") |> List.ofArray
-        | None -> []
+        // Persist the original source selection so `refresh` can replay it.
+        let extraMeta = IndexInputs.toExtraMeta explicitGameDir explicitMods workshopIds playset auto
 
-    // Persist the original source selection so `refresh` can replay it.
-    let extraMeta = IndexInputs.toExtraMeta explicitGameDir explicitMods workshopIds playset auto
-
-    runIndexCore
-        adapter
-        verbose
-        showProgress
-        gameDir
-        mods
-        configDir
-        dbPath
-        dbName
-        (args.Contains Skip_Generic)
-        (not (args.Contains No_Fts))
-        languages
-        true
-        extraMeta
+        runIndexCore
+            adapter
+            verbose
+            showProgress
+            gameDir
+            mods
+            configDir
+            dbPath
+            dbName
+            (args.Contains Skip_Generic)
+            (not (args.Contains No_Fts))
+            languages
+            true
+            extraMeta
 
 // Re-index one registered database (or all) in place. Each index's original
 // source selection was persisted to its meta at `index` time, so we replay it
@@ -495,40 +471,38 @@ let private runRefresh (args: ParseResults<RefreshArgs>) =
             match Discovery.resolveGameDir adapter probe inputs.ExplicitGameDir with
             | Result.Error ge -> Result.Error(sprintf "game dir: %s" ge)
             | Result.Ok gameDir ->
-                let mods, warnings =
-                    resolveMods probe inputs.ExplicitMods inputs.WorkshopIds inputs.Playset inputs.AutoMods adapter
+                match resolveCliMods adapter probe inputs.ExplicitMods inputs.WorkshopIds inputs.Playset inputs.AutoMods with
+                | Result.Error error -> Result.Error error
+                | Result.Ok mods ->
+                    let extraMeta =
+                        IndexInputs.toExtraMeta
+                            inputs.ExplicitGameDir
+                            inputs.ExplicitMods
+                            inputs.WorkshopIds
+                            inputs.Playset
+                            inputs.AutoMods
 
-                warnings |> List.iter (eprintfn "warning: %s")
+                    printfn "Refreshing '%s' (%s)..." e.Name e.Game
 
-                let extraMeta =
-                    IndexInputs.toExtraMeta
-                        inputs.ExplicitGameDir
-                        inputs.ExplicitMods
-                        inputs.WorkshopIds
-                        inputs.Playset
-                        inputs.AutoMods
+                    let code =
+                        runIndexCore
+                            adapter
+                            verbose
+                            showProgress
+                            gameDir
+                            mods
+                            configDir
+                            e.Path
+                            e.Name
+                            inputs.SkipGeneric
+                            inputs.WithFts
+                            inputs.Languages
+                            false
+                            extraMeta
 
-                printfn "Refreshing '%s' (%s)..." e.Name e.Game
-
-                let code =
-                    runIndexCore
-                        adapter
-                        verbose
-                        showProgress
-                        gameDir
-                        mods
-                        configDir
-                        e.Path
-                        e.Name
-                        inputs.SkipGeneric
-                        inputs.WithFts
-                        inputs.Languages
-                        false
-                        extraMeta
-
-                // 0 = clean, 4 = built with FK violations (already warned). Both
-                // mean the database was rebuilt; anything else is a real failure.
-                if code = ExitOk || code = 4 then Result.Ok() else Result.Error "indexing failed"
+                    // 0 = clean, 4 = built with FK violations (already warned). Both
+                    // mean the database was rebuilt; anything else is a real failure.
+                    if code = ExitOk || code = 4 then Result.Ok() else Result.Error "indexing failed"
 
         let results = entries |> List.map (fun e -> e.Name, refreshOne e)
         let failures = results |> List.choose (fun (n, r) -> match r with Result.Error m -> Some(n, m) | _ -> None)
